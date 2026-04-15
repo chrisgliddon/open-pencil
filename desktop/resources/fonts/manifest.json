@@ -1,0 +1,62 @@
+{
+  "$schema_doc": "List of fonts bundled with the OpenPencil desktop build. Each entry is loaded at startup by src/engine/fonts.ts. License files (OFL.txt) live next to each font and are required for redistribution under SIL Open Font License or Apache 2.0 terms.",
+  "fonts": [
+    {
+      "family": "Press Start 2P",
+      "file": "pressstart2p/PressStart2P-Regular.ttf",
+      "style": "Regular",
+      "weight": 400,
+      "license": "SIL OFL 1.1",
+      "license_file": "pressstart2p/OFL.txt",
+      "category": "display-pixel"
+    },
+    {
+      "family": "VT323",
+      "file": "vt323/VT323-Regular.ttf",
+      "style": "Regular",
+      "weight": 400,
+      "license": "SIL OFL 1.1",
+      "license_file": "vt323/OFL.txt",
+      "category": "display-mono"
+    },
+    {
+      "family": "MedievalSharp",
+      "file": "medievalsharp/MedievalSharp-Regular.ttf",
+      "style": "Regular",
+      "weight": 400,
+      "license": "SIL OFL 1.1",
+      "license_file": "medievalsharp/OFL.txt",
+      "category": "display-decorative"
+    },
+    {
+      "family": "Cinzel",
+      "file": "cinzel/Cinzel-VF.ttf",
+      "style": "Regular",
+      "weight": 400,
+      "variable_axes": ["wght"],
+      "license": "SIL OFL 1.1",
+      "license_file": "cinzel/OFL.txt",
+      "category": "display-serif"
+    },
+    {
+      "family": "JetBrains Mono",
+      "file": "jetbrainsmono/JetBrainsMono-VF.ttf",
+      "style": "Regular",
+      "weight": 400,
+      "variable_axes": ["wght"],
+      "license": "SIL OFL 1.1",
+      "license_file": "jetbrainsmono/OFL.txt",
+      "category": "mono"
+    },
+    {
+      "family": "Geist",
+      "file": "geist/Geist-VF.ttf",
+      "style": "Regular",
+      "weight": 400,
+      "variable_axes": ["wght"],
+      "license": "SIL OFL 1.1",
+      "license_file": "geist/OFL.txt",
+      "category": "sans"
+    }
+  ]
+}

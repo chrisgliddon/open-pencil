@@ -5,6 +5,8 @@ import {
   styleToWeight
 } from '@open-pencil/core'
 
+import { bundledFontFamilies, loadBundledFonts } from './bundled-fonts'
+
 interface TauriFontFamily {
   family: string
   styles: string[]
@@ -31,6 +33,10 @@ async function getTauriFonts(): Promise<TauriFontFamily[]> {
 export function preloadFonts(): void {
   if (IS_TAURI) {
     void getTauriFonts().then(registerFontFaces)
+    // Bundled fonts ship inside the binary and are loaded immediately
+    // so designs using them render correctly even on a fresh machine
+    // without those fonts installed at the OS level.
+    void loadBundledFonts()
   }
 }
 
@@ -44,8 +50,17 @@ function registerFontFaces(fonts: TauriFontFamily[]): void {
 
 export async function listFamilies(): Promise<string[]> {
   if (IS_TAURI) {
-    const fonts = await getTauriFonts()
-    return fonts.map((f) => f.family)
+    // Ensure bundled fonts have finished loading so they appear in the
+    // returned list even if a caller invokes listFamilies() before the
+    // preload promise resolves.
+    await loadBundledFonts()
+    const [systemFonts, bundled] = await Promise.all([
+      getTauriFonts(),
+      Promise.resolve(bundledFontFamilies())
+    ])
+    const merged = new Set<string>(bundled)
+    for (const f of systemFonts) merged.add(f.family)
+    return Array.from(merged).sort((a, b) => a.localeCompare(b))
   }
 
   const { listFamilies: coreList } = await import('@open-pencil/core')
@@ -54,6 +69,15 @@ export async function listFamilies(): Promise<string[]> {
 
 export async function loadFont(family: string, style = 'Regular'): Promise<ArrayBuffer | null> {
   if (IS_TAURI) {
+    // Short-circuit for bundled fonts: their bytes are already in the
+    // core renderer cache via markFontLoaded(), so loadFontCore returns
+    // them without round-tripping Tauri's font-kit lookup (which would
+    // fail anyway because bundled fonts aren't installed at the OS level).
+    await loadBundledFonts()
+    if (bundledFontFamilies().includes(family)) {
+      return loadFontCore(family, style)
+    }
+
     try {
       const { invoke } = await import('@tauri-apps/api/core')
       const data = await invoke<number[]>('load_system_font', { family, style })
