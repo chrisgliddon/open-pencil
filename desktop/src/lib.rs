@@ -138,6 +138,12 @@ struct ImageEntry {
     data: Vec<u8>,
 }
 
+#[derive(serde::Deserialize)]
+struct FontEntry {
+    name: String,
+    data: Vec<u8>,
+}
+
 #[tauri::command]
 fn build_fig_file(
     schema_deflated: Vec<u8>,
@@ -145,6 +151,7 @@ fn build_fig_file(
     thumbnail_png: Vec<u8>,
     meta_json: String,
     images: Option<Vec<ImageEntry>>,
+    fonts: Option<Vec<FontEntry>>,
     fig_kiwi_version: Option<u32>,
 ) -> Result<Vec<u8>, String> {
     use std::io::{Cursor, Write};
@@ -195,6 +202,15 @@ fn build_fig_file(
 
     if let Some(image_entries) = images {
         for entry in image_entries {
+            zip.start_file(&entry.name, options)
+                .map_err(|e| e.to_string())?;
+            zip.write_all(&entry.data)
+                .map_err(|e| e.to_string())?;
+        }
+    }
+
+    if let Some(font_entries) = fonts {
+        for entry in font_entries {
             zip.start_file(&entry.name, options)
                 .map_err(|e| e.to_string())?;
             zip.write_all(&entry.data)

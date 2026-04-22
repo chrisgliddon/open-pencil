@@ -872,6 +872,27 @@ export function createEditorStore(initialGraph?: SceneGraph) {
     ;(debouncedAutosave as typeof debouncedAutosave & { cancel?: () => void }).cancel?.()
   }
 
+  async function restoreEmbeddedFonts(graph: { fonts: Map<string, Uint8Array> }) {
+    for (const [key, data] of graph.fonts) {
+      if (!key.includes('|')) continue
+      const [family, style] = key.split('|')
+      const { markFontLoaded } = await import('@open-pencil/core')
+      const weightStr = style.replace(/\D/g, '') || '400'
+      const italic = style.toLowerCase().includes('italic') ? 'italic' : 'normal'
+      const buf = data.buffer.slice(
+        data.byteOffset,
+        data.byteOffset + data.byteLength
+      ) as ArrayBuffer
+      markFontLoaded(family, style, buf)
+      const face = new FontFace(family, data as unknown as ArrayBuffer, {
+        weight: weightStr,
+        style: italic
+      })
+      await face.load()
+      document.fonts.add(face)
+    }
+  }
+
   async function openFigFile(file: File, handle?: FileSystemFileHandle, path?: string) {
     try {
       state.loading = true
@@ -887,6 +908,7 @@ export function createEditorStore(initialGraph?: SceneGraph) {
       const pageId = firstPage?.id ?? editor.graph.rootId
       await editor.switchPage(pageId)
       editor.requestRender()
+      await restoreEmbeddedFonts(imported)
     } catch (e) {
       console.error('Failed to open .fig file:', e)
       toast.error(`Failed to open file: ${e instanceof Error ? e.message : String(e)}`)
@@ -895,7 +917,7 @@ export function createEditorStore(initialGraph?: SceneGraph) {
     }
   }
 
-  function buildFigFile() {
+  async function buildFigFile() {
     return exportFigFile(editor.graph, undefined, editor.renderer ?? undefined, state.currentPageId)
   }
 
@@ -989,10 +1011,12 @@ export function createEditorStore(initialGraph?: SceneGraph) {
       const file = new File([blob], state.documentName + '.fig')
       const imported = await readFigFile(file)
       editor.replaceGraph(imported)
+      await restoreEmbeddedFonts(imported)
     } else if (fileHandle) {
       const file = await fileHandle.getFile()
       const imported = await readFigFile(file)
       editor.replaceGraph(imported)
+      await restoreEmbeddedFonts(imported)
     } else {
       return
     }

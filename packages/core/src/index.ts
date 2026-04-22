@@ -290,6 +290,7 @@ export {
   decompressFigKiwiData,
   decompressFigKiwiDataAsync,
   buildFontDigestMap,
+  buildFontDataMap,
   sceneNodeToKiwi,
   fractionalPosition,
   mapToFigmaType

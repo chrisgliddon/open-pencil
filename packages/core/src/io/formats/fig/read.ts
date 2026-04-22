@@ -6,8 +6,14 @@ import type { FigParseResult } from '../../../kiwi/fig-parse-core'
 import type { SceneGraph } from '../../../scene-graph'
 
 function parseFigFileSync(buffer: ArrayBuffer): SceneGraph {
-  const { nodeChanges, blobs, images: imageEntries, figKiwiVersion } = parseFigBuffer(buffer)
-  const graph = importNodeChanges(nodeChanges, blobs, new Map(imageEntries))
+  const {
+    nodeChanges,
+    blobs,
+    images: imageEntries,
+    fonts: fontEntries,
+    figKiwiVersion
+  } = parseFigBuffer(buffer)
+  const graph = importNodeChanges(nodeChanges, blobs, new Map(imageEntries), new Map(fontEntries))
   graph.figKiwiVersion = figKiwiVersion
   return graph
 }
@@ -24,9 +30,16 @@ function parseViaWorker(buffer: ArrayBuffer): Promise<SceneGraph> {
         reject(new Error(e.data.error))
         return
       }
-      const { nodeChanges, blobs, images: imageEntries, figKiwiVersion } = e.data
+      const {
+        nodeChanges,
+        blobs,
+        images: imageEntries,
+        fonts: fontEntries,
+        figKiwiVersion
+      } = e.data
       const images = new Map<string, Uint8Array>(imageEntries)
-      const graph = importNodeChanges(nodeChanges, blobs, images)
+      const fonts = new Map<string, Uint8Array>(fontEntries)
+      const graph = importNodeChanges(nodeChanges, blobs, images, fonts)
       graph.figKiwiVersion = figKiwiVersion
       resolve(graph)
     }

@@ -5,8 +5,6 @@ import {
   styleToWeight
 } from '@open-pencil/core'
 
-import { downloadGoogleFont, getGoogleFontCatalog, loadGoogleFont } from './google-fonts'
-
 interface TauriFontFamily {
   family: string
   styles: string[]
@@ -45,35 +43,13 @@ function registerFontFaces(fonts: TauriFontFamily[]): void {
 }
 
 export async function listFamilies(): Promise<string[]> {
-  let base: string[] = []
-
   if (IS_TAURI) {
     const fonts = await getTauriFonts()
-    base = fonts.map((f) => f.family)
-  } else {
-    const { listFamilies: coreList } = await import('@open-pencil/core')
-    base = await coreList()
+    return fonts.map((f) => f.family).sort()
   }
 
-  // Merge cached / known Google Fonts so they appear in the picker
-  // without awaiting the network catalog fetch.
-  try {
-    const catalog = await getGoogleFontCatalog()
-    const merged = new Set(base)
-    for (const entry of catalog) merged.add(entry.family)
-    return [...merged].sort()
-  } catch {
-    return base
-  }
-}
-
-export async function listGoogleFamilies(): Promise<string[]> {
-  try {
-    const catalog = await getGoogleFontCatalog()
-    return catalog.map((e) => e.family).sort()
-  } catch {
-    return []
-  }
+  const { listFamilies: coreList } = await import('@open-pencil/core')
+  return coreList()
 }
 
 export async function loadFont(family: string, style = 'Regular'): Promise<ArrayBuffer | null> {
@@ -94,20 +70,9 @@ export async function loadFont(family: string, style = 'Regular'): Promise<Array
       return buffer
     } catch (e) {
       console.warn('Tauri system font load failed:', e)
-      // fall through to core loader (handles Google Fonts + bundled)
+      // fall through to core loader
     }
   }
 
-  const coreBuffer = await loadFontCore(family, style)
-  if (coreBuffer) return coreBuffer
-
-  // Attempt to fetch from Google Fonts as a last resort
-  const loaded = await loadGoogleFont(family, style)
-  if (!loaded) return null
-
-  // After successful Google Font load, retrieve bytes from cache for renderer
-  const bytes = await downloadGoogleFont(family, style)
-  if (!bytes) return null
-  markFontLoaded(family, style, bytes.buffer as ArrayBuffer)
-  return bytes.buffer as ArrayBuffer
+  return loadFontCore(family, style)
 }

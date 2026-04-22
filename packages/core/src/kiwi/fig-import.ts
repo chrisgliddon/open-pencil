@@ -278,7 +278,8 @@ function parseDocumentColorSpace(nodeChanges: NodeChange[]): 'srgb' | 'display-p
 export function importNodeChanges(
   nodeChanges: NodeChange[],
   blobs: Uint8Array[] = [],
-  images?: Map<string, Uint8Array>
+  images?: Map<string, Uint8Array>,
+  fonts?: Map<string, Uint8Array>
 ): SceneGraph {
   const graph = new SceneGraph()
   graph.documentColorSpace = parseDocumentColorSpace(nodeChanges)
@@ -286,6 +287,12 @@ export function importNodeChanges(
   if (images) {
     for (const [hash, data] of images) {
       graph.images.set(hash, data)
+    }
+  }
+
+  if (fonts) {
+    for (const [key, data] of fonts) {
+      graph.fonts.set(key, data)
     }
   }
 

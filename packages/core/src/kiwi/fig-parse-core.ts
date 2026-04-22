@@ -48,7 +48,22 @@ export interface FigParseResult {
   nodeChanges: NodeChange[]
   blobs: Uint8Array[]
   images: Array<[string, Uint8Array]>
+  fonts: Array<[string, Uint8Array]>
   figKiwiVersion: number
+}
+
+function collectEntries(
+  entries: string[],
+  zip: Record<string, Uint8Array>,
+  prefix: string
+): Array<[string, Uint8Array]> {
+  const out: Array<[string, Uint8Array]> = []
+  for (const name of entries) {
+    if (name.startsWith(prefix) && name !== prefix) {
+      out.push([name.replace(prefix, ''), zip[name]])
+    }
+  }
+  return out
 }
 
 export function parseFigBuffer(buffer: ArrayBuffer): FigParseResult {
@@ -56,7 +71,8 @@ export function parseFigBuffer(buffer: ArrayBuffer): FigParseResult {
     filter: (file) =>
       file.name === 'canvas.fig' ||
       file.name === 'canvas' ||
-      (file.name.startsWith('images/') && file.name !== 'images/')
+      (file.name.startsWith('images/') && file.name !== 'images/') ||
+      (file.name.startsWith('fonts/') && file.name !== 'fonts/')
   })
   const entries = Object.keys(zip)
 
@@ -100,12 +116,8 @@ export function parseFigBuffer(buffer: ArrayBuffer): FigParseResult {
     b.bytes instanceof Uint8Array ? b.bytes : new Uint8Array(Object.values(b.bytes))
   )
 
-  const images: Array<[string, Uint8Array]> = []
-  for (const name of entries) {
-    if (name.startsWith('images/') && name !== 'images/') {
-      images.push([name.replace('images/', ''), zip[name]])
-    }
-  }
+  const images = collectEntries(entries, zip, 'images/')
+  const fonts = collectEntries(entries, zip, 'fonts/')
 
-  return { nodeChanges, blobs, images, figKiwiVersion: payload.version }
+  return { nodeChanges, blobs, images, fonts, figKiwiVersion: payload.version }
 }

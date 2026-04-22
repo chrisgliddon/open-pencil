@@ -68,6 +68,14 @@ function collectImageEntries(graph: SceneGraph): Array<{ name: string; data: Uin
   return entries
 }
 
+function collectFontEntries(graph: SceneGraph): Array<{ name: string; data: Uint8Array }> {
+  const entries: Array<{ name: string; data: Uint8Array }> = []
+  for (const [key, data] of graph.fonts) {
+    entries.push({ name: `fonts/${key}`, data })
+  }
+  return entries
+}
+
 const THUMBNAIL_WIDTH = 400
 const THUMBNAIL_HEIGHT = 225
 
@@ -226,6 +234,7 @@ export async function exportFigFile(
   })
 
   const imageEntries = collectImageEntries(graph)
+  const fontEntries = collectFontEntries(graph)
 
   const version = graph.figKiwiVersion ?? undefined
 
@@ -238,12 +247,21 @@ export async function exportFigFile(
         thumbnailPng: Array.from(thumbnailPng),
         metaJson,
         images: imageEntries.map((e) => ({ name: e.name, data: Array.from(e.data) })),
+        fonts: fontEntries.map((e) => ({ name: e.name, data: Array.from(e.data) })),
         figKiwiVersion: version
       })
     )
   }
 
-  return compressFigData(schemaDeflated, kiwiData, thumbnailPng, metaJson, imageEntries, version)
+  return compressFigDataSync(
+    schemaDeflated,
+    kiwiData,
+    thumbnailPng,
+    metaJson,
+    imageEntries,
+    version,
+    fontEntries
+  )
 }
 
 export { compressFigDataSync } from './compress'

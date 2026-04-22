@@ -67,6 +67,34 @@ export async function buildFontDigestMap(graph: SceneGraph): Promise<Map<string,
   return result
 }
 
+/**
+ * Collects full font byte data for every font family+style pair used in the
+ * graph, so external renderers can load the exact font without needing to
+ * re-acquire it from the internet or OS. Used for embedding fonts into
+ * the .fig export for portability.
+ */
+export function buildFontDataMap(graph: SceneGraph): Map<string, ArrayBuffer | null> {
+  const fontKeys = new Set<string>()
+  for (const node of graph.getAllNodes()) {
+    if (node.type !== 'TEXT') continue
+    const baseStyle = weightToStyle(node.fontWeight, node.italic)
+    fontKeys.add(`${node.fontFamily}|${baseStyle}`)
+    for (const run of node.styleRuns) {
+      const family = run.style.fontFamily ?? node.fontFamily
+      const weight = run.style.fontWeight ?? node.fontWeight
+      const italic = run.style.italic ?? node.italic
+      fontKeys.add(`${family}|${weightToStyle(weight, italic)}`)
+    }
+  }
+
+  const result = new Map<string, ArrayBuffer | null>()
+  for (const key of fontKeys) {
+    const [family, style] = key.split('|')
+    result.set(key, getLoadedFontData(family, style))
+  }
+  return result
+}
+
 export function parseFigKiwiChunks(binary: Uint8Array): Uint8Array[] | null {
   const header = new TextDecoder().decode(binary.slice(0, 8))
   if (header !== 'fig-kiwi') return null

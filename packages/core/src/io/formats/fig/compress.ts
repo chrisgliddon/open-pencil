@@ -8,7 +8,8 @@ export function compressFigDataSync(
   thumbnailPng: Uint8Array,
   metaJson: string,
   imageEntries: Array<{ name: string; data: Uint8Array }>,
-  figKiwiVersion?: number
+  figKiwiVersion?: number,
+  fontEntries?: Array<{ name: string; data: Uint8Array }>
 ): Uint8Array {
   const canvasData = buildFigKiwi(schemaDeflated, kiwiData, figKiwiVersion)
   const zipEntries: Zippable = {
@@ -18,6 +19,11 @@ export function compressFigDataSync(
   }
   for (const entry of imageEntries) {
     zipEntries[entry.name] = [entry.data, { level: 0 }]
+  }
+  if (fontEntries) {
+    for (const entry of fontEntries) {
+      zipEntries[entry.name] = [entry.data, { level: 0 }]
+    }
   }
   return zipSync(zipEntries)
 }

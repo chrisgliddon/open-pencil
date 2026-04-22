@@ -526,6 +526,7 @@ const CONTAINER_TYPES = new Set<NodeType>([
 export class SceneGraph {
   nodes = new Map<string, SceneNode>()
   images = new Map<string, Uint8Array>()
+  fonts = new Map<string, Uint8Array>()
   variables = new Map<string, Variable>()
   variableCollections = new Map<string, VariableCollection>()
   activeMode = new Map<string, string>()
