@@ -7,7 +7,7 @@ import { computed, onMounted, ref, watch } from 'vue'
 export interface UseFontPickerOptions {
   /** Writable model for the selected font family. */
   modelValue: { value: string }
-  /** Async source for available font families. */
+  /** Async source for available font families. Called whenever the source changes. */
   listFamilies: () => Promise<string[]>
   /** Optional callback fired after a family is selected. */
   onSelect?: (family: string) => void
@@ -20,6 +20,7 @@ export function useFontPicker(options: UseFontPickerOptions) {
   const families = ref<string[]>([])
   const searchTerm = ref('')
   const open = ref(false)
+  const loading = ref(false)
 
   const { contains } = useFilter({ sensitivity: 'base' })
   const filtered = computed(() => {
@@ -27,12 +28,26 @@ export function useFontPicker(options: UseFontPickerOptions) {
     return families.value.filter((family) => contains(family, searchTerm.value))
   })
 
-  onMounted(async () => {
+  async function refresh() {
+    loading.value = true
     families.value = await options.listFamilies()
-  })
+    loading.value = false
+  }
+
+  onMounted(refresh)
+
+  watch(
+    () => options.listFamilies,
+    () => {
+      if (open.value) refresh()
+    }
+  )
 
   watch(open, (isOpen) => {
-    if (isOpen) searchTerm.value = ''
+    if (isOpen) {
+      searchTerm.value = ''
+      refresh()
+    }
   })
 
   function select(family: string) {
@@ -46,6 +61,7 @@ export function useFontPicker(options: UseFontPickerOptions) {
     searchTerm,
     open,
     filtered,
-    select
+    select,
+    loading
   }
 }
