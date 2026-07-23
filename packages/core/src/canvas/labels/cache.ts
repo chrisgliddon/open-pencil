@@ -1,5 +1,7 @@
 import type { SceneGraph, SceneNode } from '@open-pencil/scene-graph'
 
+import type { CanvasViewport } from '#core/canvas/viewport'
+
 export interface CachedSection {
   nodeId: string
   absX: number
@@ -14,17 +16,16 @@ export interface CachedComponent {
   parentType: string
 }
 
-interface Viewport {
-  x: number
-  y: number
-  w: number
-  h: number
-}
-
 const LABEL_TYPES = new Set(['COMPONENT', 'COMPONENT_SET'])
 const COMPONENT_LABEL_PARENT_TYPES = new Set(['CANVAS', 'SECTION'])
 
-function isInViewport(absX: number, absY: number, w: number, h: number, vp: Viewport): boolean {
+function isInViewport(
+  absX: number,
+  absY: number,
+  w: number,
+  h: number,
+  vp: CanvasViewport
+): boolean {
   return absX + w >= vp.x && absY + h >= vp.y && absX <= vp.x + vp.w && absY <= vp.y + vp.h
 }
 
@@ -33,7 +34,7 @@ function collectVisibleLabels<
   U extends object
 >(
   graph: SceneGraph,
-  viewport: Viewport,
+  viewport: CanvasViewport,
   cachedItems: T[],
   metadata: (cached: T) => U
 ): Array<{ node: SceneNode; absX: number; absY: number } & U> {
@@ -83,7 +84,7 @@ export class LabelCache {
 
   getSections(
     graph: SceneGraph,
-    viewport: Viewport
+    viewport: CanvasViewport
   ): Array<{ node: SceneNode; absX: number; absY: number; nested: boolean }> {
     return collectVisibleLabels(graph, viewport, this.sections, (cached) => ({
       nested: cached.nested
@@ -92,7 +93,7 @@ export class LabelCache {
 
   getComponents(
     graph: SceneGraph,
-    viewport: Viewport
+    viewport: CanvasViewport
   ): Array<{ node: SceneNode; absX: number; absY: number; inside: boolean }> {
     return collectVisibleLabels(graph, viewport, this.components, () => ({
       inside: false

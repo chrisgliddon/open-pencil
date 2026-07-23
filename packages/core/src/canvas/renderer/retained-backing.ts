@@ -3,6 +3,7 @@ import type { Canvas, Image as CKImage, Surface } from 'canvaskit-wasm'
 import type { SceneGraph } from '@open-pencil/scene-graph'
 import { computeDescendantVisualBounds } from '@open-pencil/scene-graph/geometry'
 
+import { drawCanvasGrid } from '#core/canvas/canvas-grid'
 import type { SkiaRenderer } from '#core/canvas/renderer'
 import { clearSubtreePictureCache } from '#core/canvas/renderer/state'
 
@@ -282,6 +283,30 @@ function renderBackingChild(
   r.worldViewport = prevViewport
 }
 
+function drawBackingGrid(
+  r: SkiaRenderer,
+  surface: Surface,
+  backing: ReturnType<typeof sceneBackingGeometry>
+): void {
+  const canvas = surface.getCanvas()
+  canvas.save()
+  canvas.scale(backing.dpr, backing.dpr)
+  canvas.translate(backing.panX, backing.panY)
+  canvas.scale(backing.zoom, backing.zoom)
+  drawCanvasGrid(
+    r,
+    canvas,
+    {
+      x: backing.worldX,
+      y: backing.worldY,
+      w: backing.worldWidth,
+      h: backing.worldHeight
+    },
+    backing.zoom
+  )
+  canvas.restore()
+}
+
 function sceneBackingMetrics(backing: ReturnType<typeof sceneBackingGeometry>) {
   return {
     panX: backing.panX,
@@ -347,6 +372,7 @@ function startSceneBackingBuild(r: SkiaRenderer, graph: SceneGraph, sceneVersion
   const surface = createSceneBackingSurface(r, backing.width, backing.height)
   if (!surface) return
   surface.getCanvas().clear(r.ck.Color4f(r.pageColor.r, r.pageColor.g, r.pageColor.b, 1))
+  drawBackingGrid(r, surface, backing)
   r.sceneBackingBuild = {
     surface,
     graph,
@@ -414,6 +440,7 @@ function recordSceneBacking(r: SkiaRenderer, graph: SceneGraph, sceneVersion: nu
   if (!surface) return
   const canvas = surface.getCanvas()
   canvas.clear(r.ck.Color4f(r.pageColor.r, r.pageColor.g, r.pageColor.b, 1))
+  drawBackingGrid(r, surface, backing)
   const pageNode = graph.getNode(r.pageId ?? graph.rootId)
   if (pageNode) {
     for (const childId of pageNode.childIds) {

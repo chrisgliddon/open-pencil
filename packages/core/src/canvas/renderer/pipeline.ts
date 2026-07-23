@@ -3,6 +3,7 @@ import type { Canvas } from 'canvaskit-wasm'
 import type { SceneGraph } from '@open-pencil/scene-graph'
 import { computeDescendantVisualBounds } from '@open-pencil/scene-graph/geometry'
 
+import { drawCanvasGrid } from '#core/canvas/canvas-grid'
 import { drawPageGuides } from '#core/canvas/page-guides'
 import type { RenderOverlays, SkiaRenderer } from '#core/canvas/renderer'
 import type { EditorState } from '#core/editor/types'
@@ -190,6 +191,9 @@ export function render(
     } else {
       canvas.translate(r.panX, r.panY)
       canvas.scale(r.zoom, r.zoom)
+      p.beginPhase('render:grid')
+      drawCanvasGrid(r, canvas)
+      p.endPhase('render:grid')
       renderSceneContent(
         r,
         canvas,
