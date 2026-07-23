@@ -18,6 +18,7 @@
 
 ### Changed
 
+- Surface ACP agent session modes, model selection, and slash-commands in the AI chat panel. When an agent (e.g. OpenCode) advertises modes, a Plan/Build toggle replaces the static agent badge; advertised models render a model dropdown; advertised commands enable `/`-triggered autocomplete — matching the agent's TUI workflow inside the OpenPencil GUI.
 - Redesign the editor chrome and Design panel with denser aligned controls, clearer selection and section states, improved menus and overlays, consistent light/dark theming, and better keyboard and screen-reader behavior.
 - Scale the Layers panel to documents with thousands of nodes through virtualized rows, faster incremental updates, stable expansion, range selection, and scroll-to-selection.
 - Resolve fonts before text appears, with language-aware CJK and Arabic fallback, character-specific remote subsets, and more reliable rendering as fonts load.

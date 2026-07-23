@@ -1,7 +1,8 @@
 import { Chat } from '@ai-sdk/vue'
 import { DirectChatTransport, stepCountIs, ToolLoopAgent } from 'ai'
 import type { ChatTransport, UIMessage } from 'ai'
-import type { ComputedRef, Ref } from 'vue'
+import { shallowRef } from 'vue'
+import type { ComputedRef, Ref, ShallowRef } from 'vue'
 
 import { ACP_AGENTS } from '@open-pencil/core/constants'
 import type { ACPAgentID, AIProviderID } from '@open-pencil/core/constants'
@@ -10,6 +11,17 @@ import { createLanguageModel, resolveLanguageModelID } from '@/app/ai/chat/model
 import SYSTEM_PROMPT from '@/app/ai/chat/system-prompt.md?raw'
 import { MAX_AGENT_STEPS, createAITools, recordStepUsage, resetRunSteps } from '@/app/ai/tools'
 import type { getActiveEditorStore } from '@/app/editor/active-store'
+import type { ACPSessionState } from '@/app/ai/acp/session-state'
+
+// The subset of ACPChatTransport the session manager + UI need. Importing the
+// full class here would pull the ACP SDK into the non-ACP path; this interface
+// keeps the dependency lazy (ACPChatTransport is dynamically imported).
+export interface ACPTransportHandle {
+  destroy(): Promise<void>
+  readonly acpState: ShallowRef<ACPSessionState>
+  setMode(modeId: string): Promise<void>
+  setModel(modelId: string): Promise<void>
+}
 
 type EditorStore = ReturnType<typeof getActiveEditorStore>
 
@@ -130,7 +142,8 @@ export function createChatSessionManager({
   let currentChatStore: EditorStore | null = null
   let currentChatMessages = new WeakMap<EditorStore, UIMessage[]>()
   let chat: Chat<UIMessage> | null = null
-  let acpTransportInstance: { destroy(): Promise<void> } | null = null
+  let acpTransportInstance: ACPTransportHandle | null = null
+  const acpTransport = shallowRef<ACPTransportHandle | null>(null)
   let overrideTransport: (() => ChatTransport<UIMessage>) | null = null
 
   function markTransportDirty() {
@@ -142,7 +155,8 @@ export function createChatSessionManager({
   async function createActiveACPTransport() {
     await acpTransportInstance?.destroy()
     const transport = await createACPTransport(providerID.value)
-    acpTransportInstance = transport
+    acpTransportInstance = transport as ACPTransportHandle
+    acpTransport.value = acpTransportInstance
     return transport as ChatTransport<UIMessage>
   }
 
@@ -151,6 +165,7 @@ export function createChatSessionManager({
 
     void acpTransportInstance?.destroy()
     acpTransportInstance = null
+    acpTransport.value = null
 
     return createToolLoopTransport({
       store,
@@ -196,5 +211,5 @@ export function createChatSessionManager({
     markTransportDirty()
   }
 
-  return { ensureChat, resetChat, markTransportDirty, setOverrideTransport }
+  return { ensureChat, resetChat, markTransportDirty, setOverrideTransport, acpTransport }
 }
