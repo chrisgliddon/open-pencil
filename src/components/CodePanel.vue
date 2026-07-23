@@ -99,6 +99,24 @@ function copyReference() {
 
 <template>
   <div data-test-id="code-panel-root" class="flex min-h-0 flex-1 flex-col">
+    <!-- Persistent toolbar: the project/import actions are reachable even
+         before any layer is selected, so a fresh document can import a
+         Claude Design project without first picking a layer. -->
+    <div
+      v-if="!showProjectImporter"
+      data-test-id="code-panel-actions"
+      class="flex shrink-0 items-center gap-1 border-b border-border px-3 py-1.5"
+    >
+      <AppTextButton
+        data-test-id="code-panel-import-project-toggle"
+        :ui="{ base: 'flex items-center gap-1 rounded px-1.5 py-0.5 text-[11px] hover:bg-hover' }"
+        @click="toggleProjectImporter"
+      >
+        <icon-lucide-folder-input class="size-3" />
+        Import project
+      </AppTextButton>
+    </div>
+
     <div
       v-if="jsxCode"
       data-test-id="code-panel-header"
@@ -115,14 +133,6 @@ function copyReference() {
         </AppTextButton>
       </div>
       <div class="flex items-center gap-1">
-        <AppTextButton
-          data-test-id="code-panel-import-project-toggle"
-          :ui="{ base: 'flex items-center gap-1 rounded px-1.5 py-0.5 text-[11px] hover:bg-hover' }"
-          @click="toggleProjectImporter"
-        >
-          <icon-lucide-folder-input class="size-3" />
-          Project
-        </AppTextButton>
         <AppTextButton
           data-test-id="code-panel-import-toggle"
           :ui="{ base: 'flex items-center gap-1 rounded px-1.5 py-0.5 text-[11px] hover:bg-hover' }"
@@ -155,7 +165,7 @@ function copyReference() {
       </div>
     </div>
 
-    <ImportProjectPanel v-if="showProjectImporter" />
+    <ImportProjectPanel v-if="showProjectImporter" @close="showProjectImporter = false" />
 
     <div
       v-if="showImporter || !jsxCode"
