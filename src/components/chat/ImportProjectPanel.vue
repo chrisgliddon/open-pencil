@@ -18,6 +18,8 @@ import { convertProjectWithLLM } from '@/app/import-claude-design/convert'
 const { dialogs } = useI18n()
 const store = useEditorStore()
 
+const emit = defineEmits<{ close: [] }>()
+
 const manifest = shallowRef<ProjectManifest | null>(null)
 const scanning = ref(false)
 const converting = ref(false)
@@ -118,6 +120,13 @@ async function convert() {
         <div class="text-xs font-medium text-surface">Import Claude Design project</div>
         <div class="text-[11px] text-muted">{{ dialogs.importProjectFolder }}</div>
       </div>
+      <AppTextButton
+        data-test-id="import-project-close"
+        :ui="{ base: 'flex size-6 items-center justify-center rounded text-muted hover:bg-hover hover:text-surface' }"
+        @click="emit('close')"
+      >
+        <icon-lucide-x class="size-3.5" />
+      </AppTextButton>
     </div>
 
     <div class="mb-2 flex items-center gap-1.5">
