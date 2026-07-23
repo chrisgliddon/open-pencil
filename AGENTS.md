@@ -4,6 +4,20 @@ Vue 3 + CanvasKit (Skia WASM) + Yoga WASM design editor. Tauri v2 desktop, also 
 
 **Roadmap:** `packages/docs/development/roadmap.md` tracks product direction, Figma compatibility gaps, and raw metadata coverage. This file keeps agent-facing architecture, conventions, and commands; detailed public docs live under `packages/docs/**`.
 
+## Local desktop builds
+
+`desktop/tauri.conf.json` is configured for local, unsigned builds: no hardcoded `signingIdentity` (Tauri ad-hoc signs automatically) and the updater is disabled (empty `endpoints`/`pubkey`, `createUpdaterArtifacts: false`) so a fork never tries to pull upstream releases.
+
+Build and install locally:
+
+```sh
+bunx tauri build --bundles app
+cp -R "$(cargo-target-dir 2>/dev/null || echo ~/.cargo-target)/prefabuland/release/bundle/macos/OpenPencil.app" /Applications/
+xattr -dr com.apple.quarantine /Applications/OpenPencil.app  # clear the gatekeeper flag
+```
+
+Use `--bundles app` (not the default `all`) — the DMG bundler fails without a real signing identity. To distribute signed, notarized builds to others, set `APPLE_SIGNING_IDENTITY` (Developer ID Application cert) and re-enable `createUpdaterArtifacts` with your own updater keypair.
+
 ## Monorepo
 
 Bun workspace packages:
