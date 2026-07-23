@@ -29,6 +29,17 @@ Press <kbd>⌘</kbd><kbd>J</kbd> (<kbd>Ctrl</kbd> + <kbd>J</kbd>) to open the AI
 
 No backend, no subscription — your key talks directly to the provider.
 
+### Desktop Agent CLIs
+
+On the desktop app, you can also drive a coding agent directly from the chat panel. The agent connects to the editor's MCP server and uses all the design tools. Requires the agent CLI installed locally.
+
+| Agent | Command | Setup |
+|-------|---------|-------|
+| **Claude Code** | `claude-agent-acp` | `npm i -g @agentclientprotocol/claude-agent-acp` |
+| **Codex** | `codex-acp` | `npm i -g @agentclientprotocol/codex-acp` |
+| **Gemini CLI** | `gemini --acp` | `npm i -g @google/gemini-cli` |
+| **OpenCode** | `opencode acp` | Install and sign in to [`opencode`](https://opencode.ai) |
+
 ## What It Can Do
 
 The assistant has 90+ tools across these categories:

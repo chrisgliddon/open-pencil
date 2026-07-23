@@ -2,6 +2,7 @@ import { useLocalStorage } from '@vueuse/core'
 import { computed, watch } from 'vue'
 
 import {
+  ACP_AGENTS,
   AI_PROVIDERS,
   DEFAULT_AI_MODEL,
   DEFAULT_AI_PROVIDER,
@@ -13,6 +14,7 @@ import { setPexelsApiKey, setUnsplashAccessKey } from '@open-pencil/core/tools'
 
 const STORAGE_PREFIX = 'open-pencil:'
 const LEGACY_KEY_STORAGE = `${STORAGE_PREFIX}openrouter-api-key`
+const PROVIDER_KEY = `${STORAGE_PREFIX}ai-provider`
 
 export function keyStorageKey(id: string) {
   return `${STORAGE_PREFIX}ai-key:${id}`
@@ -23,18 +25,30 @@ function migrateLegacyStorage() {
   if (legacyKey) {
     localStorage.setItem(keyStorageKey('openrouter'), legacyKey)
     localStorage.removeItem(LEGACY_KEY_STORAGE)
-    if (!localStorage.getItem(`${STORAGE_PREFIX}ai-provider`)) {
-      localStorage.setItem(`${STORAGE_PREFIX}ai-provider`, 'openrouter')
+    if (!localStorage.getItem(PROVIDER_KEY)) {
+      localStorage.setItem(PROVIDER_KEY, 'openrouter')
     }
   }
 }
 
-if (IS_BROWSER) migrateLegacyStorage()
+// A previously-selected ACP agent may no longer be registered (e.g. a fork
+// dropped an agent, or an agent was renamed). Fall back to the default
+// provider instead of booting into an "Unknown ACP agent" error.
+function migrateStaleACPProvider() {
+  const stored = localStorage.getItem(PROVIDER_KEY)
+  if (!stored?.startsWith('acp:')) return
+  const agentId = stored.slice('acp:'.length)
+  if (!ACP_AGENTS.some((agent) => agent.id === agentId)) {
+    localStorage.setItem(PROVIDER_KEY, DEFAULT_AI_PROVIDER)
+  }
+}
 
-export const providerID = useLocalStorage<AIProviderID>(
-  `${STORAGE_PREFIX}ai-provider`,
-  DEFAULT_AI_PROVIDER
-)
+if (IS_BROWSER) {
+  migrateLegacyStorage()
+  migrateStaleACPProvider()
+}
+
+export const providerID = useLocalStorage<AIProviderID>(PROVIDER_KEY, DEFAULT_AI_PROVIDER)
 const apiKeyStorageKey = computed(() => keyStorageKey(providerID.value))
 export const apiKey = useLocalStorage(apiKeyStorageKey, '')
 export const modelID = useLocalStorage(`${STORAGE_PREFIX}ai-model`, DEFAULT_AI_MODEL)
