@@ -2,11 +2,15 @@ import { ClientSideConnection, ndJsonStream, PROTOCOL_VERSION } from '@agentclie
 import type {
   Client,
   Agent,
+  NewSessionResponse,
   SessionNotification,
   RequestPermissionRequest,
-  RequestPermissionResponse
+  RequestPermissionResponse,
+  SessionConfigOption,
+  SessionUpdate
 } from '@agentclientprotocol/sdk'
 import type { ChatTransport, UIMessage, UIMessageChunk } from 'ai'
+import type { ShallowRef } from 'vue'
 
 import type { ACPAgentDef } from '@open-pencil/core/constants'
 
@@ -14,6 +18,14 @@ import SYSTEM_PROMPT from '@/app/ai/chat/system-prompt.md?raw'
 
 import { mapUpdate } from './map-update'
 import { spawnAcpProcess } from './process'
+import {
+  applySessionUpdate,
+  configOptionIdForCategory,
+  createEmptySessionState,
+  createSessionStateRefs,
+  sessionStateFromConfig,
+  type ACPSessionState
+} from './session-state'
 
 type TauriChild = Awaited<ReturnType<typeof spawnAcpProcess>>['child']
 
@@ -29,6 +41,7 @@ interface ACPSession {
   child: TauriChild
   onUpdate: ((params: SessionNotification) => void) | null
   dead: boolean
+  configOptions: SessionConfigOption[] | null
 }
 
 const MAX_LOG_AGE_MS = 5 * 60 * 1000
@@ -62,6 +75,16 @@ export function hasAcpDebugEntries(): boolean {
 function isMissingCommandError(message: string): boolean {
   const normalized = message.toLowerCase()
   return normalized.includes('enoent') || normalized.includes('program not found')
+}
+
+const SESSION_STATE_UPDATE_TYPES = new Set<SessionUpdate['sessionUpdate']>([
+  'current_mode_update',
+  'available_commands_update',
+  'config_option_update'
+])
+
+function isSessionStateUpdate(update: SessionUpdate): boolean {
+  return SESSION_STATE_UPDATE_TYPES.has(update.sessionUpdate)
 }
 
 function missingCommandMessage(agentDef?: ACPAgentDef): string {
@@ -110,10 +133,62 @@ export class ACPChatTransport implements ChatTransport<UIMessage> {
   private cwd: string
   private sentContext = false
   private destroying = false
+  // Reactive ACP session capabilities (modes, models, commands, current
+  // selections). Populated from NewSessionResponse and kept in sync with
+  // current_mode_update / available_commands_update / config_option_update
+  // notifications. The chat UI reads this to render the Plan/Build toggle,
+  // model dropdown, and slash-command autocomplete.
+  readonly sessionState: ShallowRef<ACPSessionState>
 
   constructor(options: { agentDef: ACPAgentDef; cwd?: string }) {
     this.agentDef = options.agentDef
     this.cwd = options.cwd ?? '.'
+    this.sessionState = createSessionStateRefs().state
+  }
+
+  /** Reactive ACP session state for the chat UI (modes, models, commands). */
+  get acpState(): ShallowRef<ACPSessionState> {
+    return this.sessionState
+  }
+
+  /** Switch the agent's operational mode (e.g. Plan/Build). No-op if unset. */
+  async setMode(modeId: string): Promise<void> {
+    const session = this.session
+    if (!session) return
+    const configId = configOptionIdForCategory(session.configOptions, 'mode')
+    if (configId) {
+      await session.connection.setSessionConfigOption({
+        sessionId: session.sessionId,
+        configId,
+        value: modeId
+      })
+    } else {
+      await session.connection.setSessionMode({
+        sessionId: session.sessionId,
+        modeId
+      })
+    }
+    this.sessionState.value = { ...this.sessionState.value, currentModeId: modeId }
+  }
+
+  /** Switch the agent's active model. No-op if unset or unsupported. */
+  async setModel(modelId: string): Promise<void> {
+    const session = this.session
+    if (!session) return
+    const configId = configOptionIdForCategory(session.configOptions, 'model')
+    if (configId) {
+      await session.connection.setSessionConfigOption({
+        sessionId: session.sessionId,
+        configId,
+        value: modelId
+      })
+    } else {
+      await session.connection.unstable_setSessionModel({
+        sessionId: session.sessionId,
+        modelId
+      })
+    }
+    this.sessionState.value = { ...this.sessionState.value, currentModelId: modelId }
   }
 
   async sendMessages({
@@ -131,6 +206,7 @@ export class ACPChatTransport implements ChatTransport<UIMessage> {
 
     if (this.session?.dead) {
       this.session = null
+      this.sessionState.value = createEmptySessionState()
     }
 
     if (!this.session) {
@@ -168,6 +244,16 @@ export class ACPChatTransport implements ChatTransport<UIMessage> {
               type: params.update.sessionUpdate,
               data: params.update
             })
+          }
+          // Route state-changing updates (mode, commands, config options) to
+          // the reactive session state before mapping message chunks. These
+          // updates carry no message text, so they don't produce UIMessageChunks.
+          if (isSessionStateUpdate(params.update)) {
+            const next = { ...this.sessionState.value }
+            if (applySessionUpdate(next, params.update)) {
+              this.sessionState.value = next
+            }
+            return
           }
           const result = mapUpdate(params.update, textId, textStarted)
           for (const chunk of result.chunks) {
@@ -210,6 +296,7 @@ export class ACPChatTransport implements ChatTransport<UIMessage> {
       await this.session.child.kill()
       this.session = null
     }
+    this.sessionState.value = createEmptySessionState()
   }
 
   private async spawnAgent(): Promise<ACPSession> {
@@ -256,7 +343,7 @@ export class ACPChatTransport implements ChatTransport<UIMessage> {
       clientCapabilities: {}
     })
 
-    let sessionResult
+    let sessionResult: NewSessionResponse
     try {
       sessionResult = await connection.newSession({
         cwd: this.cwd,
@@ -276,11 +363,18 @@ export class ACPChatTransport implements ChatTransport<UIMessage> {
       throw new Error(formatConnectionError(e, this.agentDef))
     }
 
+    // Seed the reactive session state from the agent's advertised config
+    // options (mode/model selects) and optional model state. The UI renders
+    // the Plan/Build toggle and model dropdown from this.
+    const configOptions = sessionResult.configOptions ?? null
+    this.sessionState.value = sessionStateFromConfig(configOptions, sessionResult.models ?? null)
+
     const session: ACPSession = {
       connection,
       sessionId: sessionResult.sessionId,
       child,
       dead: false,
+      configOptions,
       get onUpdate() {
         return onUpdate
       },

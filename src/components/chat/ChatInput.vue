@@ -2,6 +2,9 @@
 import { TooltipProvider } from 'reka-ui'
 import { computed, ref } from 'vue'
 
+import AcpCommandAutocomplete from '@/components/chat/AcpCommandAutocomplete.vue'
+import AcpModeToggle from '@/components/chat/AcpModeToggle.vue'
+import AcpModelSelect from '@/components/chat/AcpModelSelect.vue'
 import ProviderModelSelect from '@/components/chat/ProviderModelSelect.vue'
 import ProviderSettings from '@/components/chat/ProviderSettings/ProviderSettings.vue'
 import AppInput from '@/components/ui/AppInput.vue'
@@ -12,7 +15,7 @@ import { useI18n } from '@open-pencil/vue'
 
 import { ACP_AGENTS } from '@open-pencil/core/constants'
 
-const { providerID, providerDef, modelID, customModelID } = useAIChat()
+const { providerID, providerDef, modelID, customModelID, acpTransport } = useAIChat()
 const { dialogs } = useI18n()
 
 const { status } = defineProps<{
@@ -32,6 +35,12 @@ const acpAgentName = computed(() => {
   const agentId = providerID.value.replace('acp:', '')
   return ACP_AGENTS.find((a) => a.id === agentId)?.name ?? agentId
 })
+// The ACP session capabilities (modes/models/commands) are only available once
+// the agent is spawned and the session is established. Until then, fall back to
+// the static agent-name badge.
+const acpStateReady = computed(
+  () => isACPProvider.value && !!acpTransport.value && acpTransport.value.acpState.value.modes.length + acpTransport.value.acpState.value.models.length > 0
+)
 const isCustomProvider = computed(
   () => providerID.value === 'openai-compatible' || providerID.value === 'anthropic-compatible'
 )
@@ -65,6 +74,10 @@ function handleSubmit(e: Event) {
   emit('submit', text)
   input.value = ''
 }
+
+function handleAcpCommand(command: string) {
+  input.value = command
+}
 </script>
 
 <template>
@@ -73,7 +86,14 @@ function handleSubmit(e: Event) {
       <!-- Model selector & settings -->
       <div class="mb-1.5 flex items-center gap-1">
         <template v-if="isACPProvider">
-          <div class="flex items-center gap-1 px-1.5 py-0.5 text-[10px] text-muted">
+          <!-- ACP session controls: Plan/Build toggle + model dropdown.
+               Shown once the agent advertises its modes/models; until then
+               fall back to the agent-name badge. -->
+          <template v-if="acpTransport && acpStateReady">
+            <AcpModeToggle :transport="acpTransport" />
+            <AcpModelSelect :transport="acpTransport" />
+          </template>
+          <div v-else class="flex items-center gap-1 px-1.5 py-0.5 text-[10px] text-muted">
             <icon-lucide-bot class="size-3" />
             {{ acpAgentName }}
           </div>
@@ -97,7 +117,14 @@ function handleSubmit(e: Event) {
       </div>
 
       <!-- Input form -->
-      <form class="flex gap-1.5" @submit="handleSubmit">
+      <form class="relative flex gap-1.5" @submit="handleSubmit">
+        <!-- Slash-command autocomplete for ACP agents that advertise commands -->
+        <AcpCommandAutocomplete
+          v-if="acpTransport && acpTransport.acpState.value.commands.length > 0"
+          :transport="acpTransport"
+          :input="input"
+          @select="handleAcpCommand"
+        />
         <AppInput
           v-model="input"
           data-test-id="chat-input"
