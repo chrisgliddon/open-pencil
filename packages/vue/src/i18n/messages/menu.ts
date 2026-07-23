@@ -10,6 +10,8 @@ export const menuMessageDefaults = {
 
   new: 'New',
   open: 'Open…',
+  openRecent: 'Open Recent',
+  clearRecentlyOpened: 'Clear Recently Opened',
   save: 'Save',
   saveAs: 'Save as…',
   exportSelection: 'Export selection…',

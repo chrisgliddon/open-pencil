@@ -33,6 +33,19 @@ export const APP_MENU_SCHEMA = [
     items: [
       { id: 'new', label: 'New', shortcut: 'MOD+N' },
       { id: 'open', label: 'Open…', shortcut: 'MOD+O' },
+      {
+        id: 'open-recent',
+        label: 'Open Recent',
+        sub: [
+          // Placeholder: the browser menu populates this from the reactive
+          // recent-files store at runtime; the native menu is rebuilt by the
+          // `rebuild_recent_files_menu` Tauri command. Kept as an empty
+          // submenu so the schema stays valid for both renderers.
+          { id: 'open-recent-empty', label: 'No Recent Files', target: 'browser' },
+          { type: 'separator', target: 'browser' },
+          { id: 'clear-recent-files', label: 'Clear Recently Opened', target: 'browser' }
+        ]
+      },
       { type: 'separator' },
       { id: 'save', label: 'Save', shortcut: 'MOD+S' },
       { id: 'save-as', label: 'Save As…', shortcut: 'MOD+SHIFT+S' },

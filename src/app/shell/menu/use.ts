@@ -7,7 +7,8 @@ import { useEditorStore } from '@/app/editor/active-store'
 import { pasteClipboardToReplace } from '@/app/editor/clipboard/paste-to-replace'
 import { executeClipboardCommand } from '@/app/editor/clipboard/system'
 import { createSharedEditorMenuActions } from '@/app/shell/menu/editor-actions'
-import { importFileDialog, openFileDialog } from '@/app/shell/menu/files'
+import { importFileDialog, openFileDialog, openFileFromPath } from '@/app/shell/menu/files'
+import { clearRecentFiles, syncRecentFilesMenu } from '@/app/shell/recent-files'
 import { useAppTheme } from '@/app/shell/theme'
 import { checkForAppUpdate } from '@/app/shell/updater'
 import { createTab, closeTab, activeTab } from '@/app/tabs'
@@ -74,6 +75,7 @@ export function useMenu() {
     autosave: () => {
       store.state.autosaveEnabled = !store.state.autosaveEnabled
     },
+    'clear-recent-files': () => clearRecentFiles(),
     copy: () => void executeClipboardCommand(store, 'copy'),
     cut: () => void executeClipboardCommand(store, 'cut'),
     paste: () => void executeClipboardCommand(store, 'paste'),
@@ -88,12 +90,21 @@ export function useMenu() {
         runCommand(event.payload as EditorCommandId)
         return
       }
+      // Native "Open Recent" items emit `recent:<path>`; re-open the file.
+      if (event.payload.startsWith('recent:')) {
+        void openFileFromPath(event.payload.slice('recent:'.length))
+        return
+      }
       actions[event.payload]?.()
     }).then((fn) => {
       unlisten = fn
       return undefined
     })
   })
+
+  // Rebuild the native menu's "Open Recent" submenu whenever the persisted
+  // recent-files list changes (including the initial sync on startup).
+  syncRecentFilesMenu()
 
   tryOnScopeDispose(() => unlisten?.())
 }

@@ -9,6 +9,7 @@ import { setOpenPencilStore } from '@/app/browser-bridge'
 import { setActiveEditorStore } from '@/app/editor/active-store'
 import { createEditorStore } from '@/app/editor/session'
 import type { EditorStore } from '@/app/editor/session'
+import { recordRecentFile } from '@/app/shell/recent-files'
 
 export interface Tab {
   id: string
@@ -147,6 +148,10 @@ export async function openFileInNewTab(
     store.undo.clear()
     store.setDocumentSource(file.name, sourceFormat, handle, path)
     store.clearSelection()
+    // Record the opened file in the Recent list. Only Tauri/native opens carry
+    // a filesystem path; browser opens via the File System Access API hold a
+    // handle instead, which isn't a stable path to persist.
+    if (path) recordRecentFile(path, file.name)
     const pageId = store.graph.getPages()[0]?.id ?? store.graph.rootId
     await store.switchPage(pageId)
     await store.fitCurrentPageToViewport()

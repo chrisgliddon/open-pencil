@@ -9,7 +9,8 @@ import { createSharedEditorMenuActions } from '@/app/shell/menu/editor-actions'
 import type { AppMenuActionItem, AppMenuEntry, AppMenuGroupSchema } from '@/app/shell/menu/schema'
 import { APP_MENU_SCHEMA } from '@/app/shell/menu/schema'
 import { appMenuShortcutLabel } from '@/app/shell/menu/shortcut'
-import { openFileDialog } from '@/app/shell/menu/use'
+import { openFileDialog, openFileFromPath } from '@/app/shell/menu/use'
+import { clearRecentFiles, recentFiles } from '@/app/shell/recent-files'
 import { useAppTheme } from '@/app/shell/theme'
 
 export interface AppMenuGroup {
@@ -34,7 +35,8 @@ export function useAppMenu() {
   const translatedMenuItemLabels: Partial<Record<string, keyof typeof menu.value>> = {
     new: 'new',
     open: 'open',
-    save: 'save',
+    'open-recent': 'openRecent',
+    'clear-recent-files': 'clearRecentlyOpened',
     'save-as': 'saveAs',
     'export-selection': 'exportSelection',
     autosave: 'autosave',
@@ -72,6 +74,25 @@ export function useAppMenu() {
       }
     }))
   )
+
+  // "Open Recent" submenu, built from the reactive recent-files store. Each
+  // entry re-opens its file by path; the trailing separator + "Clear Recently
+  // Opened" item resets the list. Disabled when there are no recents.
+  const recentMenu = computed<MenuEntry[]>(() => {
+    const files = recentFiles.value
+    const items: MenuEntry[] = files.map((file) => ({
+      label: file.name,
+      action: () => void openFileFromPath(file.path)
+    }))
+    if (files.length > 0) {
+      items.push({ separator: true })
+      items.push({
+        label: menu.value.clearRecentlyOpened,
+        action: () => clearRecentFiles()
+      })
+    }
+    return items
+  })
 
   function exportSelection(format: 'png' | 'svg' | 'fig') {
     if (store.state.selectedIds.size > 0) void store.exportSelection(1, format)
@@ -145,6 +166,15 @@ export function useAppMenu() {
 
     if (entry.id === 'language') {
       return { label: menuLabel(entry), sub: languageMenu.value }
+    }
+
+    if (entry.id === 'open-recent') {
+      const sub = recentMenu.value
+      return {
+        label: menuLabel(entry),
+        sub,
+        disabled: sub.length === 0
+      }
     }
 
     if (entry.command) {

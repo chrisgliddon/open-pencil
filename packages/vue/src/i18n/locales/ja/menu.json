@@ -7,6 +7,8 @@
   "text": "テキスト",
   "new": "新規作成",
   "open": "開く…",
+  "openRecent": "最近開いたファイル",
+  "clearRecentlyOpened": "最近開いたファイルを消去",
   "save": "保存",
   "saveAs": "名前を付けて保存…",
   "exportSelection": "選択範囲をエクスポート…",
