@@ -7,6 +7,8 @@
   "text": "Tekst",
   "new": "Nowy",
   "open": "Otwórz…",
+  "openRecent": "Otwórz ostatnie",
+  "clearRecentlyOpened": "Wyczyść ostatnio otwarte",
   "save": "Zapisz",
   "saveAs": "Zapisz jako…",
   "exportSelection": "Eksportuj zaznaczenie…",

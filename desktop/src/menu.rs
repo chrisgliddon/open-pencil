@@ -1,5 +1,6 @@
 use serde::Deserialize;
 use tauri::menu::{MenuBuilder, MenuItemBuilder, Submenu, SubmenuBuilder};
+use tauri::{AppHandle};
 
 #[cfg(target_os = "macos")]
 use tauri::menu::PredefinedMenuItem;
@@ -10,7 +11,7 @@ struct MenuGroup {
     items: Vec<MenuEntry>,
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Clone)]
 struct MenuEntry {
     #[serde(default)]
     r#type: Option<String>,
@@ -19,6 +20,12 @@ struct MenuEntry {
     accelerator: Option<String>,
     #[serde(default)]
     sub: Vec<MenuEntry>,
+}
+
+#[derive(Deserialize, Clone)]
+pub struct RecentFile {
+    path: String,
+    name: String,
 }
 
 fn build_submenu<R: tauri::Runtime>(
@@ -35,7 +42,10 @@ fn build_submenu<R: tauri::Runtime>(
         }
 
         let label = entry.label.as_deref().unwrap_or_default();
-        if !entry.sub.is_empty() {
+        // `open-recent` is always a submenu, even when empty: the frontend
+        // rebuilds it with the persisted recent files right after launch, and
+        // an empty leaf would flash momentarily and emit a no-op event.
+        if !entry.sub.is_empty() || entry.id.as_deref() == Some("open-recent") {
             let submenu = build_submenu(app, label, &entry.sub)?;
             builder = builder.item(&submenu);
             continue;
@@ -54,17 +64,75 @@ fn build_submenu<R: tauri::Runtime>(
     builder.build()
 }
 
-fn build_schema_menus<R: tauri::Runtime>(
+// Build the "Open Recent" submenu entries from the persisted recent-files
+// list. Each entry emits a `menu-event` with id `recent:<path>` so the
+// frontend can re-open that path. Trailing separator + a "Clear Recently
+// Opened" item (`clear-recent-files`) lets the user reset the list.
+fn recent_submenu_items(recents: &[RecentFile]) -> Vec<MenuEntry> {
+    let mut items: Vec<MenuEntry> = recents
+        .iter()
+        .map(|file| MenuEntry {
+            r#type: None,
+            id: Some(format!("recent:{}", file.path)),
+            label: Some(file.name.clone()),
+            accelerator: None,
+            sub: Vec::new(),
+        })
+        .collect();
+
+    if !recents.is_empty() {
+        items.push(MenuEntry {
+            r#type: Some("separator".to_string()),
+            id: None,
+            label: None,
+            accelerator: None,
+            sub: Vec::new(),
+        });
+        items.push(MenuEntry {
+            r#type: None,
+            id: Some("clear-recent-files".to_string()),
+            label: Some("Clear Recently Opened".to_string()),
+            accelerator: None,
+            sub: Vec::new(),
+        });
+    } else {
+        // Disabled-looking placeholder so the submenu isn't empty/confusing.
+        items.push(MenuEntry {
+            r#type: None,
+            id: Some("open-recent-empty".to_string()),
+            label: Some("No Recent Files".to_string()),
+            accelerator: None,
+            sub: Vec::new(),
+        });
+    }
+
+    items
+}
+
+// Inject the recents into the File group's `open-recent` submenu, then build
+// every group. The static `menu.json` carries the rest of the menu structure.
+fn build_schema_menus_with_recents<R: tauri::Runtime>(
     app: &tauri::AppHandle<R>,
+    recents: Option<&[RecentFile]>,
 ) -> tauri::Result<Vec<Submenu<R>>> {
-    let groups: Vec<MenuGroup> = serde_json::from_str(include_str!("../generated/menu.json"))?;
+    let mut groups: Vec<MenuGroup> = serde_json::from_str(include_str!("../generated/menu.json"))?;
+    if let Some(recents) = recents {
+        let recent_items = recent_submenu_items(recents);
+        for group in groups.iter_mut() {
+            for entry in group.items.iter_mut() {
+                if entry.id.as_deref() == Some("open-recent") {
+                    entry.sub = recent_items.clone();
+                }
+            }
+        }
+    }
     groups
         .iter()
         .map(|group| build_submenu(app, &group.label, &group.items))
         .collect()
 }
 
-pub fn install_app_menu<R: tauri::Runtime>(app: &mut tauri::App<R>) -> tauri::Result<()> {
+fn install_menu_from_handle<R: tauri::Runtime>(app: &AppHandle<R>, recents: Option<&[RecentFile]>) -> tauri::Result<()> {
     #[cfg(target_os = "macos")]
     let app_menu = SubmenuBuilder::new(app, "OpenPencil")
         .item(&PredefinedMenuItem::about(
@@ -87,8 +155,6 @@ pub fn install_app_menu<R: tauri::Runtime>(app: &mut tauri::App<R>) -> tauri::Re
         .item(&PredefinedMenuItem::quit(app, None)?)
         .build()?;
 
-    let handle = app.handle().clone();
-    let schema_menus = build_schema_menus(&handle)?;
     let mut builder = MenuBuilder::new(app);
 
     #[cfg(target_os = "macos")]
@@ -96,10 +162,24 @@ pub fn install_app_menu<R: tauri::Runtime>(app: &mut tauri::App<R>) -> tauri::Re
         builder = builder.item(&app_menu);
     }
 
-    for menu in &schema_menus {
+    for menu in &build_schema_menus_with_recents(app, recents)? {
         builder = builder.item(menu);
     }
 
     app.set_menu(builder.build()?)?;
     Ok(())
+}
+
+pub fn install_app_menu<R: tauri::Runtime>(app: &mut tauri::App<R>) -> tauri::Result<()> {
+    install_menu_from_handle(&app.handle().clone(), None)
+}
+
+/// Rebuild the app menu with an updated "Open Recent" submenu. Invoked from
+/// the frontend whenever the persisted recent-files list changes.
+#[tauri::command]
+pub fn rebuild_recent_files_menu(
+    app: AppHandle,
+    recents: Vec<RecentFile>,
+) -> tauri::Result<()> {
+    install_menu_from_handle(&app, Some(&recents))
 }

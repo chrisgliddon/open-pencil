@@ -7,6 +7,8 @@
   "text": "文本",
   "new": "新建",
   "open": "打开…",
+  "openRecent": "最近打开",
+  "clearRecentlyOpened": "清除最近打开的文件",
   "save": "保存",
   "saveAs": "另存为…",
   "exportSelection": "导出所选内容…",

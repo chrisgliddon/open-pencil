@@ -4,6 +4,7 @@
 
 ### Added
 
+- Add an "Open Recent" submenu to the File menu that lists recently opened documents and re-opens them in one click, with a "Clear Recently Opened" option. Persists across launches and stays in sync in both the native (Tauri) and browser menus.
 - Import HTML, CSS, Tailwind, and JSX as editable documents from the app, CLI, and SDK, and export standalone browser-ready HTML with compiled CSS and optional external assets.
 - Author richer Design JSX with components, instances, variables, gradients, structured fills, shadows, and blur effects.
 - Manage pages with rename, delete, and drag-to-reorder actions in the Pages panel.

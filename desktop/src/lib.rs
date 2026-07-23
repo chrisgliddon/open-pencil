@@ -9,7 +9,7 @@ mod window;
 use fig_container::build_fig_file;
 use fonts::{list_system_fonts, load_system_font};
 use http::proxy_http_request;
-use menu::install_app_menu;
+use menu::{install_app_menu, rebuild_recent_files_menu};
 use menu_events::handle_menu_event;
 use std::{
     path::{Path, PathBuf},
@@ -121,6 +121,7 @@ pub fn run() {
             list_system_fonts,
             load_system_font,
             proxy_http_request,
+            rebuild_recent_files_menu,
             take_pending_open
         ])
         .plugin(tauri_plugin_opener::init())

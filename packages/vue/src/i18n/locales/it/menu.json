@@ -7,6 +7,8 @@
   "text": "Testo",
   "new": "Nuovo",
   "open": "Apri…",
+  "openRecent": "Apri recente",
+  "clearRecentlyOpened": "Cancella file recenti",
   "save": "Salva",
   "saveAs": "Salva con nome…",
   "exportSelection": "Esporta selezione…",
