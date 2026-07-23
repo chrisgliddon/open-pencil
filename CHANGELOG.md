@@ -41,6 +41,7 @@
 - Resolve published package types correctly for TypeScript consumers and keep file-backed CLI commands working under Node.
 - Fix a freeze when opening the asset details or export preview for components whose auto-layout children trigger layout writebacks during preview rendering.
 - Speed up component-to-instance sync by replacing an O(children² log children) child-order sort with a rank-map sort, reducing jank when editing large UI-kit components with many instances.
+- Stop clearing the absolute-position cache every render frame; it is already cleared on layout-affecting mutations and page switches. Persisting it across frames turns stable frames from a cold O(N·depth) traversal into a warm O(N), a 25–1300× speedup on deep hierarchies.
 
 ### Security
 

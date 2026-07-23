@@ -146,7 +146,12 @@ export function render(
   p.setScenePictureRecordTime(0)
   p.setFlushTime(0)
 
-  graph.clearAbsPosCache()
+  // Note: do NOT clear the abs-pos cache here. It is already cleared on every
+  // layout-affecting mutation via updateNode/updateNodePreview (index.ts /
+  // preview.ts), and on graph replacement. Clearing it every frame made the
+  // cache a within-frame memo only, forcing a cold O(N*D) repopulation each
+  // render — a real cost on deep hierarchies (D=1000 measured 129ms/frame).
+  // Letting it persist across frames turns stable frames into warm O(N).
 
   const canvas = r.surface.getCanvas()
   if (layer === 'overlays') {
