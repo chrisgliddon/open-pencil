@@ -39,6 +39,7 @@
 - Preserve Hangul IME composition while editing text.
 - Share public app links from the desktop collaboration panel and send the current document to newly joined collaborators.
 - Resolve published package types correctly for TypeScript consumers and keep file-backed CLI commands working under Node.
+- Fix a freeze when opening the asset details or export preview for components whose auto-layout children trigger layout writebacks during preview rendering.
 
 ### Security
 
