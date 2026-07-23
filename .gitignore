@@ -47,6 +47,9 @@ storybook-static/
 /desktop/*.key
 !/desktop/*.key.pub
 
+# MCP sidecar build artifacts
+/desktop/binaries/
+
 # Copied from node_modules at build time
 public/canvaskit.wasm
 public/canvaskit-webgpu/

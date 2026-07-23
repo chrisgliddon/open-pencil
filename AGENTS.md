@@ -4,6 +4,21 @@ Vue 3 + CanvasKit (Skia WASM) + Yoga WASM design editor. Tauri v2 desktop, also 
 
 **Roadmap:** `packages/docs/development/roadmap.md` tracks product direction, Figma compatibility gaps, and raw metadata coverage. This file keeps agent-facing architecture, conventions, and commands; detailed public docs live under `packages/docs/**`.
 
+## Fork & customization workflow
+
+This repo is a fork of `open-pencil/open-pencil`. Two remotes:
+
+- `origin` → `chrisgliddon/open-pencil` (this fork — push and open PRs here)
+- `upstream` → `open-pencil/open-pencil` (the original — pull improvements from here)
+
+Keep `master` as a clean merge target that tracks `upstream/master`. Never commit customizations directly to `master`.
+
+- Create each customization on its own `feat/*` or `fix/*` branch based on `upstream/master` (not `master`), so it stays independently revertible and PR-able upstream.
+- Merge feature branches into `master` with `--no-ff` so each customization is a distinct merge unit.
+- Pull upstream improvements with `git fetch upstream && git merge upstream/master`.
+- When porting changes bundled in old WIP commits, split them by concern onto separate branches; don't re-bundle unrelated work.
+- Build artifacts (e.g. `desktop/binaries/`) must be gitignored, never committed.
+
 ## Monorepo
 
 Bun workspace packages:
