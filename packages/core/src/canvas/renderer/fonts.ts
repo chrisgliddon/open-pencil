@@ -128,7 +128,14 @@ export async function prepareForExport(
     requirements.characters
   )
   syncFontGeneration(r)
-  computeAllLayouts(graph, pageId)
+  // Compute layouts as preview-only mutations. `applyYogaLayout` writes the
+  // computed x/y/width/height back through `graph.updateNode`, which normally
+  // emits `node:updated` and bumps `sceneVersion`. Export callers (asset
+  // preview, export panel) re-render on `sceneVersion` changes, so a committed
+  // mutation here creates a feedback loop that starves the main thread. Inside
+  // `runPreviewUpdates`, `updateNode` is redirected to `updateNodePreview`,
+  // which short-circuits on equal values and only emits `node:previewUpdated`.
+  graph.runPreviewUpdates(() => computeAllLayouts(graph, pageId))
 
   return () => setTextMeasurer(previousTextMeasurer)
 }

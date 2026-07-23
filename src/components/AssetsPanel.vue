@@ -130,7 +130,7 @@ async function updatePreview() {
   }
 }
 
-watch([detailsOpen, selectedPreviewNodeId, () => editor.state.sceneVersion], updatePreview, {
+watch([detailsOpen, selectedPreviewNodeId], updatePreview, {
   flush: 'post'
 })
 

@@ -96,9 +96,7 @@ async function updatePreview() {
 
 const previewKey = computed(
   () =>
-    `${activeTarget.value}:${editorStore.state.sceneVersion}:${editorStore.state.currentPageId}:${[
-      ...editorStore.state.selectedIds
-    ]
+    `${activeTarget.value}:${editorStore.state.currentPageId}:${[...editorStore.state.selectedIds]
       .sort()
       .join(',')}`
 )
