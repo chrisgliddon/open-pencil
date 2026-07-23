@@ -23,6 +23,7 @@
 - Resolve fonts before text appears, with language-aware CJK and Arabic fallback, character-specific remote subsets, and more reliable rendering as fonts load.
 - Open and save large `.fig` documents substantially faster while preserving original metadata and user edits; corrupted compressed data now reports an error instead of being opened as valid content.
 - Publish SceneGraph, Pen, Kiwi, Fig, DOM/CSS, and Vue functionality through clearer package APIs, with expanded SDK documentation and examples.
+- Configure Tauri for local, unsigned builds by default: drop the hardcoded upstream signing identity (ad-hoc signs automatically) and disable the updater so a fork doesn't pull upstream releases. Use `bunx tauri build --bundles app` for a local install.
 
 ### Fixed
 
