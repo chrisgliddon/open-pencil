@@ -10,6 +10,7 @@ import { useI18n, useSceneComputed } from '@open-pencil/vue'
 
 import { useEditorStore } from '@/app/editor/active-store'
 import AppTextButton from '@/components/ui/AppTextButton.vue'
+import ImportProjectPanel from '@/components/chat/ImportProjectPanel.vue'
 import Tip from '@/components/ui/Tip.vue'
 
 import type { JSXFormat } from '@open-pencil/core/design-jsx'
@@ -19,6 +20,7 @@ const { copy, copied } = useClipboard({ copiedDuring: 2000 })
 const { dialogs } = useI18n()
 const jsxFormat = ref<JSXFormat>('openpencil')
 const showImporter = ref(false)
+const showProjectImporter = ref(false)
 const importHTML = ref('')
 const importCSS = ref('')
 const importError = ref('')
@@ -56,6 +58,10 @@ function errorMessage(error: unknown) {
 
 function toggleImporter() {
   showImporter.value = !showImporter.value
+}
+
+function toggleProjectImporter() {
+  showProjectImporter.value = !showProjectImporter.value
 }
 
 async function pasteImportHTML() {
@@ -110,6 +116,14 @@ function copyReference() {
       </div>
       <div class="flex items-center gap-1">
         <AppTextButton
+          data-test-id="code-panel-import-project-toggle"
+          :ui="{ base: 'flex items-center gap-1 rounded px-1.5 py-0.5 text-[11px] hover:bg-hover' }"
+          @click="toggleProjectImporter"
+        >
+          <icon-lucide-folder-input class="size-3" />
+          Project
+        </AppTextButton>
+        <AppTextButton
           data-test-id="code-panel-import-toggle"
           :ui="{ base: 'flex items-center gap-1 rounded px-1.5 py-0.5 text-[11px] hover:bg-hover' }"
           @click="toggleImporter"
@@ -140,6 +154,8 @@ function copyReference() {
         </AppTextButton>
       </div>
     </div>
+
+    <ImportProjectPanel v-if="showProjectImporter" />
 
     <div
       v-if="showImporter || !jsxCode"
