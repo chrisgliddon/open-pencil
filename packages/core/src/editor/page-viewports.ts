@@ -1,6 +1,6 @@
 import type { Color } from '@open-pencil/scene-graph/primitives'
 
-import { CANVAS_BG_COLOR } from '#core/constants'
+import { getDefaultCanvasBgColor } from '#core/constants'
 
 import type { EditorContext } from './types'
 
@@ -36,7 +36,7 @@ export function createPageViewportStore(ctx: EditorContext) {
     ctx.state.panX = 0
     ctx.state.panY = 0
     ctx.state.zoom = 1
-    ctx.state.pageColor = { ...CANVAS_BG_COLOR }
+    ctx.state.pageColor = { ...getDefaultCanvasBgColor() }
   }
 
   function deletePageViewport(pageId: string) {
