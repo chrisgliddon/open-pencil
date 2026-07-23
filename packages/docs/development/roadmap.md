@@ -75,6 +75,15 @@ OpenPencil is moving toward production-grade Figma compatibility while keeping d
 - Shared libraries: publish, consume, and update components/styles across files.
 - Platform polish: Windows code signing, PWA support, packaged updater improvements, and desktop-side MCP bundling.
 
+### Performance at scale
+
+Empirical ceilings (headless benchmark, `tools/scale-bench/`): pages are free (only the active page renders), but a single page hits render-time walls around 10–25k nodes and component-sync jank around 100+ children × 100+ instances. The render/encode path, not the scene graph, is the binding constraint at high N.
+
+- Per-subtree invalidation: `subtreePictureCache`, `scenePicture`, and `LabelCache` wipe entirely on any `sceneVersion` bump. Track dirty subtrees and re-record only those, so a single-node edit doesn't pay O(N). Requires an ancestor-propagating invalidation index to stay correct.
+- Skip unchanged prop copies in `syncChildren`: `copyProp` deep-clones fills/strokes/effects on every instance child even when the value is identical. Add an equality short-circuit to cut the dominant sync cost for large components with many instances.
+- Spatial index for hit testing: only needed past ~50k nodes on one page; hit testing is currently O(N) in practice (early termination), no R-tree/BVH.
+- Render-path scaling: the CanvasKit draw + encode is the largest absolute cost at high N. Investigate incremental/tiled rasterization or GPU-surface reuse for very large single-page documents.
+
 ## Non-goals
 
 - Cloud-first storage or mandatory accounts.
