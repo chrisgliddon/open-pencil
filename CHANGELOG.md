@@ -18,6 +18,7 @@
 
 ### Changed
 
+- Add OpenCode as a desktop ACP chat provider (`opencode acp`) and update the Codex setup to the maintained `@agentclientprotocol/codex-acp` adapter. A previously-selected ACP agent that is no longer registered now falls back to the default provider instead of showing an "Unknown ACP agent" error on boot.
 - Redesign the editor chrome and Design panel with denser aligned controls, clearer selection and section states, improved menus and overlays, consistent light/dark theming, and better keyboard and screen-reader behavior.
 - Scale the Layers panel to documents with thousands of nodes through virtualized rows, faster incremental updates, stable expansion, range selection, and scroll-to-selection.
 - Resolve fonts before text appears, with language-aware CJK and Arabic fallback, character-specific remote subsets, and more reliable rendering as fonts load.

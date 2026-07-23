@@ -138,7 +138,7 @@ export const TEXT_SELECTION_COLOR = { r: 0.26, g: 0.52, b: 0.96, a: 0.3 }
 export const TEXT_CARET_COLOR = BLACK
 export const TEXT_CARET_WIDTH = 1
 
-export type ACPAgentID = 'claude-code' | 'codex' | 'gemini-cli'
+export type ACPAgentID = 'claude-code' | 'codex' | 'gemini-cli' | 'opencode'
 
 export interface ACPAgentDef {
   id: ACPAgentID
@@ -161,7 +161,7 @@ export const ACP_AGENTS: ACPAgentDef[] = [
     name: 'Codex',
     command: 'codex-acp',
     args: [],
-    installCommand: 'npm i -g @zed-industries/codex-acp'
+    installCommand: 'npm i -g @agentclientprotocol/codex-acp'
   },
   {
     id: 'gemini-cli',
@@ -169,6 +169,12 @@ export const ACP_AGENTS: ACPAgentDef[] = [
     command: 'gemini',
     args: ['--acp'],
     installCommand: 'npm i -g @google/gemini-cli'
+  },
+  {
+    id: 'opencode',
+    name: 'OpenCode',
+    command: 'opencode',
+    args: ['acp']
   }
 ]
 

@@ -165,20 +165,16 @@ Press <kbd>⌘</kbd><kbd>J</kbd> to open the AI assistant. It has 100+ tools tha
 
 ### Coding agents (desktop)
 
-Use Claude Code, Codex, or Gemini CLI directly in the chat panel. The agent connects to the editor's MCP server and uses all 100+ design tools. Requires the desktop app and the agent CLI installed locally.
+Use Claude Code, Codex, Gemini CLI, or OpenCode directly in the chat panel. The agent connects to the editor's MCP server and uses all 100+ design tools. Requires the desktop app and the agent CLI installed locally.
 
-**Setup (Claude Code):**
+**Setup:**
 
-1. Install the ACP adapter: `npm install -g @agentclientprotocol/claude-agent-acp`
-2. Add MCP permission to `~/.claude/settings.json`:
-   ```json
-   {
-     "permissions": {
-       "allow": ["mcp__open-pencil__*"]
-     }
-   }
-   ```
-3. Open the desktop app → <kbd>Ctrl</kbd><kbd>J</kbd> → select **Claude Code** from the provider dropdown
+- **Claude Code:** `npm install -g @agentclientprotocol/claude-agent-acp`, then add MCP permission to `~/.claude/settings.json` (`"allow": ["mcp__open-pencil__*"]`).
+- **Codex:** `npm install -g @agentclientprotocol/codex-acp`.
+- **Gemini CLI:** `npm install -g @google/gemini-cli`.
+- **OpenCode:** install and sign in to [`opencode`](https://opencode.ai); OpenPencil starts it with `opencode acp`.
+
+Open the desktop app → <kbd>Ctrl</kbd><kbd>J</kbd> → select the agent from the provider dropdown.
 
 ### MCP server
 

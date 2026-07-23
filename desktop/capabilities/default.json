@@ -41,6 +41,7 @@
         { "name": "claude-agent-acp", "cmd": "claude-agent-acp", "args": true },
         { "name": "codex-acp", "cmd": "codex-acp", "args": true },
         { "name": "gemini", "cmd": "gemini", "args": true },
+        { "name": "opencode", "cmd": "opencode", "args": true },
         { "name": "openpencil-mcp-http", "cmd": "openpencil-mcp-http", "args": true },
         { "name": "cmd", "cmd": "cmd", "args": true }
       ]
