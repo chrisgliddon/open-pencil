@@ -40,6 +40,7 @@
 - Share public app links from the desktop collaboration panel and send the current document to newly joined collaborators.
 - Resolve published package types correctly for TypeScript consumers and keep file-backed CLI commands working under Node.
 - Fix a freeze when opening the asset details or export preview for components whose auto-layout children trigger layout writebacks during preview rendering.
+- Speed up component-to-instance sync by replacing an O(children² log children) child-order sort with a rank-map sort, reducing jank when editing large UI-kit components with many instances.
 
 ### Security
 
