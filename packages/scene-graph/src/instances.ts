@@ -101,6 +101,23 @@ function cloneChildrenWithMapping(
   }
 }
 
+function buildInstChildMap(
+  graph: SceneGraph,
+  instParent: SceneNode,
+  overrides: Record<string, unknown>
+): Map<string, SceneNode> {
+  const instChildMap = new Map<string, SceneNode>()
+  for (const childId of instParent.childIds) {
+    const child = graph.nodes.get(childId)
+    if (!child) continue
+    const sourceComponentId = overrides[`${child.id}:sourceComponentId`]
+    const mappedComponentId =
+      typeof sourceComponentId === 'string' ? sourceComponentId : child.componentId
+    if (mappedComponentId) instChildMap.set(mappedComponentId, child)
+  }
+  return instChildMap
+}
+
 function syncChildren(
   graph: SceneGraph,
   compParentId: string,
@@ -111,15 +128,7 @@ function syncChildren(
   const instParent = graph.nodes.get(instParentId)
   if (!compParent || !instParent) return
 
-  const instChildMap = new Map<string, SceneNode>()
-  for (const childId of instParent.childIds) {
-    const child = graph.nodes.get(childId)
-    if (!child) continue
-    const sourceComponentId = overrides[`${child.id}:sourceComponentId`]
-    const mappedComponentId =
-      typeof sourceComponentId === 'string' ? sourceComponentId : child.componentId
-    if (mappedComponentId) instChildMap.set(mappedComponentId, child)
-  }
+  const instChildMap = buildInstChildMap(graph, instParent, overrides)
 
   for (const compChildId of compParent.childIds) {
     if (!instChildMap.has(compChildId)) {
@@ -163,17 +172,33 @@ function syncChildren(
   }
 
   const compChildOrder = compParent.childIds
-  instParent.childIds.sort((a, b) => {
-    const nodeA = graph.nodes.get(a)
-    const nodeB = graph.nodes.get(b)
-    const sourceA = nodeA ? overrides[`${nodeA.id}:sourceComponentId`] : undefined
-    const sourceB = nodeB ? overrides[`${nodeB.id}:sourceComponentId`] : undefined
-    const mappedA = typeof sourceA === 'string' ? sourceA : nodeA?.componentId
-    const mappedB = typeof sourceB === 'string' ? sourceB : nodeB?.componentId
-    const idxA = mappedA ? compChildOrder.indexOf(mappedA) : -1
-    const idxB = mappedB ? compChildOrder.indexOf(mappedB) : -1
-    return idxA - idxB
-  })
+  // Build a rank map once so the sort comparator is O(1) per comparison
+  // instead of O(children) via `indexOf`. The previous `indexOf`-in-sort
+  // made this O(children^2 log children) per instance per sync, which
+  // froze component edits on large UI-kit components (hundreds of children).
+  const compChildRank = new Map<string, number>()
+  for (let i = 0; i < compChildOrder.length; i++) {
+    compChildRank.set(compChildOrder[i], i)
+  }
+  instParent.childIds.sort((a, b) => childOrderCompare(graph, overrides, compChildRank, a, b))
+}
+
+function childOrderCompare(
+  graph: SceneGraph,
+  overrides: Record<string, unknown>,
+  rank: Map<string, number>,
+  a: string,
+  b: string
+): number {
+  const nodeA = graph.nodes.get(a)
+  const nodeB = graph.nodes.get(b)
+  const sourceA = nodeA ? overrides[`${nodeA.id}:sourceComponentId`] : undefined
+  const sourceB = nodeB ? overrides[`${nodeB.id}:sourceComponentId`] : undefined
+  const mappedA = typeof sourceA === 'string' ? sourceA : nodeA?.componentId
+  const mappedB = typeof sourceB === 'string' ? sourceB : nodeB?.componentId
+  const idxA = mappedA ? (rank.get(mappedA) ?? -1) : -1
+  const idxB = mappedB ? (rank.get(mappedB) ?? -1) : -1
+  return idxA - idxB
 }
 
 export function createInstance(

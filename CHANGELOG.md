@@ -39,6 +39,7 @@
 - Preserve Hangul IME composition while editing text.
 - Share public app links from the desktop collaboration panel and send the current document to newly joined collaborators.
 - Resolve published package types correctly for TypeScript consumers and keep file-backed CLI commands working under Node.
+- Speed up component-to-instance sync by replacing an O(children² log children) child-order sort with a rank-map sort, reducing jank when editing large UI-kit components with many instances.
 
 ### Security
 
