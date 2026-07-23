@@ -30,6 +30,7 @@
 
 ### Fixed
 
+- Initialize the editor canvas to a dark background (#222222) when the OS is in dark mode, instead of always booting to a blinding white page. The runtime default now respects `prefers-color-scheme`; `.fig` export still writes the portable light background so files stay shareable.
 - Keep desktop text visible across the scene and overlay canvases, refresh it after local fonts load, and preserve rendering when a requested italic face is unavailable (#395).
 - Honor node-scoped variable modes in `.fig` files so light and dark component examples keep their intended colors.
 - Preserve nested instance text, visibility, and paint overrides across repeated children and component swaps in `.fig` files.
