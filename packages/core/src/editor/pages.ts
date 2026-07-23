@@ -22,6 +22,10 @@ export function createPageActions(ctx: EditorContext) {
     ctx.state.currentPageId = pageId
     ctx.state.enteredContainerId = null
     ctx.setSelectedIds(new Set())
+    // Clear the abs-pos cache on page switch: the render loop no longer
+    // wipes it every frame (it persists across frames for warm reads), so
+    // clear it here to drop the previous page's entries and bound memory.
+    ctx.graph.clearAbsPosCache()
     if (previousPageId !== pageId) ctx.emitEditorEvent('page:changed', pageId, previousPageId)
 
     pageViewportStore.restorePageViewport(pageId)

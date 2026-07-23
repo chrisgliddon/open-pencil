@@ -39,6 +39,7 @@
 - Preserve Hangul IME composition while editing text.
 - Share public app links from the desktop collaboration panel and send the current document to newly joined collaborators.
 - Resolve published package types correctly for TypeScript consumers and keep file-backed CLI commands working under Node.
+- Stop clearing the absolute-position cache every render frame; it is already cleared on layout-affecting mutations and page switches. Persisting it across frames turns stable frames from a cold O(N·depth) traversal into a warm O(N), a 25–1300× speedup on deep hierarchies.
 
 ### Security
 
