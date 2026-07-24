@@ -3,6 +3,7 @@ import { PopoverClose, PopoverContent, PopoverPortal, PopoverRoot, PopoverTrigge
 import { ref } from 'vue'
 import { useI18n } from '@open-pencil/vue'
 
+import AcpModelDefaultsSection from '@/components/chat/ProviderSettings/AcpModelDefaultsSection.vue'
 import ApiKeySection from '@/components/chat/ProviderSettings/ApiKeySection.vue'
 import ApiTypeSection from '@/components/chat/ProviderSettings/ApiTypeSection.vue'
 import CustomEndpointSection from '@/components/chat/ProviderSettings/CustomEndpointSection.vue'
@@ -55,6 +56,7 @@ function onInteractOutside(e: Event) {
         <div class="flex flex-col gap-2.5">
           <h3 class="text-[11px] font-semibold text-surface">{{ dialogs.aiProvider }}</h3>
           <ProviderSelectField data-test-id="provider-settings-provider" />
+          <AcpModelDefaultsSection />
           <MaxTokensSection />
           <StockPhotoKeysSection />
           <CustomEndpointSection />

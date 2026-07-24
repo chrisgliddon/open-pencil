@@ -14,9 +14,11 @@ import type { ShallowRef } from 'vue'
 
 import type { ACPAgentDef } from '@open-pencil/core/constants'
 
+import { rememberAcpModels } from '@/app/ai/chat/storage'
 import SYSTEM_PROMPT from '@/app/ai/chat/system-prompt.md?raw'
 
 import { mapUpdate } from './map-update'
+import { defaultModelForMode } from './model-defaults'
 import { spawnAcpProcess } from './process'
 import {
   applySessionUpdate,
@@ -169,6 +171,43 @@ export class ACPChatTransport implements ChatTransport<UIMessage> {
       })
     }
     this.sessionState.value = { ...this.sessionState.value, currentModeId: modeId }
+    await this.applyConfiguredModel()
+  }
+
+  /**
+   * Apply the user's configured default model for the current mode slot
+   * (Plan/Build/Auto per agent, from AI settings). Skipped when nothing is
+   * configured, the model is already active, or the agent doesn't advertise
+   * the configured model.
+   */
+  private async applyConfiguredModel(): Promise<void> {
+    const state = this.sessionState.value
+    const wanted = defaultModelForMode(this.agentDef.id, state.modes, state.currentModeId)
+    if (!wanted || wanted === state.currentModelId) return
+    if (state.models.length > 0 && !state.models.some((model) => model.id === wanted)) return
+    try {
+      await this.setModel(wanted)
+    } catch (e) {
+      // The agent rejected the model — keep its own default.
+      console.warn(`ACP default model "${wanted}" was rejected by ${this.agentDef.id}:`, e)
+    }
+  }
+
+  /**
+   * Spawn the agent session (if needed) and return the advertised session
+   * state. Used by AI settings to list an agent's models without sending a
+   * prompt.
+   */
+  async ensureSessionState(): Promise<ACPSessionState> {
+    if (this.session?.dead) {
+      this.session = null
+      this.sessionState.value = createEmptySessionState()
+    }
+    if (!this.session) {
+      this.session = await this.spawnAgent()
+      await this.applyConfiguredModel()
+    }
+    return this.sessionState.value
   }
 
   /** Switch the agent's active model. No-op if unset or unsupported. */
@@ -204,14 +243,8 @@ export class ACPChatTransport implements ChatTransport<UIMessage> {
         .map((p) => p.text)
         .join('\n') ?? ''
 
-    if (this.session?.dead) {
-      this.session = null
-      this.sessionState.value = createEmptySessionState()
-    }
-
-    if (!this.session) {
-      this.session = await this.spawnAgent()
-    }
+    await this.ensureSessionState()
+    if (!this.session) throw new Error('ACP session is not available.')
 
     const promptText = this.sentContext ? text : `${SYSTEM_PROMPT}\n\n${text}`
     this.sentContext = true
@@ -252,6 +285,12 @@ export class ACPChatTransport implements ChatTransport<UIMessage> {
             const next = { ...this.sessionState.value }
             if (applySessionUpdate(next, params.update)) {
               this.sessionState.value = next
+              rememberAcpModels(this.agentDef.id, next.models)
+              // A mode change (agent- or user-initiated) re-applies the
+              // configured default model for the new mode's slot.
+              if (params.update.sessionUpdate === 'current_mode_update') {
+                void this.applyConfiguredModel()
+              }
             }
             return
           }
@@ -368,6 +407,7 @@ export class ACPChatTransport implements ChatTransport<UIMessage> {
     // the Plan/Build toggle and model dropdown from this.
     const configOptions = sessionResult.configOptions ?? null
     this.sessionState.value = sessionStateFromConfig(configOptions, sessionResult.models ?? null)
+    rememberAcpModels(this.agentDef.id, this.sessionState.value.models)
 
     const session: ACPSession = {
       connection,

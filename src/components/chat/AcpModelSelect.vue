@@ -27,7 +27,10 @@ const selectCls = useSelectUI({
 })
 
 const currentName = computed(
-  () => state.value.models.find((m) => m.id === state.value.currentModelId)?.name ?? state.value.currentModelId ?? 'Model'
+  () =>
+    state.value.models.find((m) => m.id === state.value.currentModelId)?.name ??
+    state.value.currentModelId ??
+    'Model'
 )
 
 function handleChange(value: string) {

@@ -21,7 +21,8 @@ const paths: Record<Exclude<AIIconKey, 'default'>, string> = {
   google:
     'M12 4a8 8 0 1 0 7.74 10h-2.1A6 6 0 1 1 12 6c1.6 0 3.05.63 4.13 1.65l1.42-1.42A8 8 0 0 0 12 4Zm0 4a4 4 0 1 0 0 8 4 4 0 0 0 0-8Z',
   // OpenRouter: a hub-and-spoke mark.
-  openrouter: 'M7 4h10a3 3 0 0 1 3 3v10a3 3 0 0 1-3 3H7a3 3 0 0 1-3-3V7a3 3 0 0 1 3-3Zm5 4-4 4 4 4 4-4-4-4Z',
+  openrouter:
+    'M7 4h10a3 3 0 0 1 3 3v10a3 3 0 0 1-3 3H7a3 3 0 0 1-3-3V7a3 3 0 0 1 3-3Zm5 4-4 4 4 4 4-4-4-4Z',
   // DeepSeek: a whale-ish mark, simplified to a rounded diamond.
   deepseek: 'M12 3 21 12 12 21 3 12 12 3Zm0 4.5L16.5 12 12 16.5 7.5 12 12 7.5Z',
   // Z.ai: a Z mark.
@@ -31,7 +32,8 @@ const paths: Record<Exclude<AIIconKey, 'default'>, string> = {
   // OpenCode: a terminal prompt mark.
   opencode: 'M5 7l4 5-4 5 1.5 0 4-5-4-5H5Zm6 9h7v1.5h-7V16Z',
   // Claude Code: the Anthropic A with a small terminal slash.
-  'claude-code': 'M5.36 16.68 9.91 7.32h2.18l4.55 9.36h-2.13l-3.6-7.51-3.6 7.51H5.36Zm10-9.36 1.6 1.6-1.6 1.6v-3.2Z',
+  'claude-code':
+    'M5.36 16.68 9.91 7.32h2.18l4.55 9.36h-2.13l-3.6-7.51-3.6 7.51H5.36Zm10-9.36 1.6 1.6-1.6 1.6v-3.2Z',
   // Codex: OpenAI mark with a code bracket.
   codex: 'M9 8 5 12l4 4m6-8 4 4-4 4',
   // Gemini CLI: a four-point star (Gemini sparkle).

@@ -4,6 +4,7 @@
 
 ### Added
 
+- Configure default models per mode for ACP coding agents (Claude Code, Codex, OpenCode, Gemini CLI) from the AI provider settings popover: pick a Plan, Build, and Auto default — e.g. plan with Claude Fable, build with Ollama's minimax-m3 — with the model list loaded on demand from the agent CLI. The session applies the matching default automatically when it starts and on every mode switch.
 - Register fonts shipped inside an imported Claude Design project (`@font-face` TTFs in `_ds/…/fonts/`) with the editor at conversion time: imported text renders with the real brand fonts on canvas, the families appear in the font picker as project fonts, and the conversion prompt lists the exact family names to use.
 - Show real rendered thumbnails for components in the Assets panel list rows, refreshed live as the scene changes, instead of the generic component icon.
 - Place imported Claude Design project images as real image fills through a new `place_asset` AI tool — the agent references files by name (`assets-min/coin.png`) and the bytes never pass through the model.
