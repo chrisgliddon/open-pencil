@@ -46,7 +46,8 @@ export const createShape = defineTool({
 export const createPage = defineTool({
   name: 'create_page',
   mutates: true,
-  description: 'Create a new page.',
+  description:
+    'Create a new page. Returns its id. Creating a page does NOT switch to it — pass the id as `parent_id` to `render`, or call `switch_page` first.',
   params: {
     name: { type: 'string', description: 'Page name', required: true }
   },

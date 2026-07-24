@@ -124,7 +124,15 @@ export class FigmaAPI implements NodeProxyHost {
 
   set currentPage(page: FigmaNodeProxy) {
     this._currentPageId = page[INTERNAL_ID]
+    this.onCurrentPageChange?.(this._currentPageId)
   }
+
+  /**
+   * Optional host hook fired when `currentPage` is assigned (e.g. by the
+   * `switch_page` tool). Lets an editor host mirror the page switch in its
+   * own state; a bare FigmaAPI ignores it.
+   */
+  onCurrentPageChange?: (pageId: string) => void
 
   getNodeById(id: string): FigmaNodeProxy | null {
     const node = this.graph.getNode(id)
