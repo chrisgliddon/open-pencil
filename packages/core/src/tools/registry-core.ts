@@ -1,6 +1,6 @@
 import { evalCode } from './analyze'
 import { calc } from './calc'
-import { render } from './create'
+import { createComponent, createInstance, createPage, render } from './create'
 import { describe } from './describe'
 import {
   setFill,
@@ -12,7 +12,7 @@ import {
   setTextProperties,
   updateNode
 } from './modify'
-import { findNodes, getJsx, getNode, getSelection } from './read'
+import { findNodes, getJsx, getNode, getSelection, listPages, switchPage } from './read'
 import type { ToolDef } from './schema'
 import { stockPhoto } from './stock-photo'
 import { batchUpdate, deleteNode, nodeResize, reparentNode } from './structure'
@@ -20,7 +20,8 @@ import { viewportZoomToFit } from './vector'
 
 /**
  * Core tools registered by default in AI chat (~30 tools, ~3K schema tokens).
- * Covers 90%+ of design sessions: render, describe, modify, structure, icons.
+ * Covers 90%+ of design sessions: render, describe, modify, structure, icons,
+ * plus document organization (pages, components, instances).
  */
 export const CORE_TOOLS: ToolDef[] = [
   // Read
@@ -28,8 +29,13 @@ export const CORE_TOOLS: ToolDef[] = [
   getNode,
   findNodes,
   getJsx,
-  // Create
+  listPages,
+  // Create & organize
   render,
+  createPage,
+  switchPage,
+  createComponent,
+  createInstance,
   // Modify
   updateNode,
   setLayout,

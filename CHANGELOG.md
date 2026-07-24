@@ -4,6 +4,9 @@
 
 ### Added
 
+- Show real rendered thumbnails for components in the Assets panel list rows, refreshed live as the scene changes, instead of the generic component icon.
+- Place imported Claude Design project images as real image fills through a new `place_asset` AI tool — the agent references files by name (`assets-min/coin.png`) and the bytes never pass through the model.
+- Give the AI chat agent document-organization tools by default: `create_page`, `switch_page`, `list_pages`, `create_component`, and `create_instance` moved into the core tool set, and the system prompt gained a "Document organization" section (one page per flow, non-overlapping top-level frames on a strict grid, reusable elements as components on a Components page).
 - Pin the active AI provider/agent at the top of the AI tab with a brand icon and name (plus the current model or Plan/Build mode), so it stays visible across the conversation instead of a generic "AI" badge. The thinking indicator now uses the same brand icon.
 - Import a Claude Design project folder or .zip from the Code panel and let the AI convert each screen into OpenPencil. Pick a folder or .zip, review the discovered screens, select which to convert, and the AI builds one page per screen on the canvas using the existing render tools.
 - Add an "Open Recent" submenu to the File menu that lists recently opened documents and re-opens them in one click, with a "Clear Recently Opened" option. Persists across launches and stays in sync in both the native (Tauri) and browser menus.
@@ -21,6 +24,8 @@
 
 ### Changed
 
+- Rebuild the Claude Design import prompt around explicit organizational rules (what becomes a Page, a top-level frame, a component, an asset) sourced from a dedicated `prompt.md`, and drop the hardcoded project-specific branding instruction.
+- Understand the full Claude Design export anatomy when importing: parse the `_ds/` design-system manifest into a reusable-component card index, surface design-token CSS first, include `assets-min/` and `uploads/` images as placeable assets, list `screenshots/` as flow hints, include `*.data.js` sidecars for realistic content, and skip oversized bundles (offline HTML, fonts) without decompressing them.
 - Add OpenCode as a desktop ACP chat provider (`opencode acp`) and update the Codex setup to the maintained `@agentclientprotocol/codex-acp` adapter. A previously-selected ACP agent that is no longer registered now falls back to the default provider instead of showing an "Unknown ACP agent" error on boot.
 - Surface ACP agent session modes, model selection, and slash-commands in the AI chat panel. When an agent (e.g. OpenCode) advertises modes, a Plan/Build toggle replaces the static agent badge; advertised models render a model dropdown; advertised commands enable `/`-triggered autocomplete — matching the agent's TUI workflow inside the OpenPencil GUI.
 - Redesign the editor chrome and Design panel with denser aligned controls, clearer selection and section states, improved menus and overlays, consistent light/dark theming, and better keyboard and screen-reader behavior.
@@ -32,6 +37,9 @@
 
 ### Fixed
 
+- Render component previews in the Assets panel for components on any page — previously the details dialog fell back to a placeholder icon for components outside the current page.
+- Compute fonts and auto-layout for every page an AI tool touches, so screens rendered onto non-current pages (e.g. during project imports) no longer appear unstyled or unlaid-out.
+- Make the `switch_page` AI tool actually switch the visible page in the editor.
 - Initialize the editor canvas to a dark background (#222222) when the OS is in dark mode, instead of always booting to a blinding white page. The runtime default now respects `prefers-color-scheme`; `.fig` export still writes the portable light background so files stay shareable.
 - Keep desktop text visible across the scene and overlay canvases, refresh it after local fonts load, and preserve rendering when a requested italic face is unavailable (#395).
 - Honor node-scoped variable modes in `.fig` files so light and dark component examples keep their intended colors.

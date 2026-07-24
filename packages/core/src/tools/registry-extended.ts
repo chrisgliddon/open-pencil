@@ -9,9 +9,6 @@ import {
 } from './analyze'
 import { designToComponentMap, designToTokens } from './codegen'
 import {
-  createComponent,
-  createInstance,
-  createPage,
   createShape,
   createSlice,
   createVector,
@@ -42,11 +39,9 @@ import {
   getPageTree,
   listAvailableFonts,
   listFonts,
-  listPages,
   pageBounds,
   queryNodes,
-  selectNodes,
-  switchPage
+  selectNodes
 } from './read'
 import type { ToolDef } from './schema'
 import {
@@ -104,11 +99,9 @@ export const EXTENDED_TOOLS: ToolDef[] = [
   // Read (advanced)
   getPageTree,
   getCurrentPage,
-  listPages,
   selectNodes,
   queryNodes,
   getComponents,
-  switchPage,
   pageBounds,
   listFonts,
   listAvailableFonts,
@@ -118,9 +111,6 @@ export const EXTENDED_TOOLS: ToolDef[] = [
   searchIconsTool,
   insertIcon,
   fetchIconsTool,
-  createComponent,
-  createInstance,
-  createPage,
   createVector,
   createSlice,
   importSvg,

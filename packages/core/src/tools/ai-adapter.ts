@@ -51,7 +51,8 @@ export interface StepBudget {
 export interface AIAdapterOptions {
   getFigma: () => FigmaAPI
   onBeforeExecute?: (def: ToolDef) => void
-  onAfterExecute?: (def: ToolDef) => Promise<void> | void
+  /** Called after every tool execution; for mutating tools `resultNodeIds` holds the node ids extracted from the result. */
+  onAfterExecute?: (def: ToolDef, resultNodeIds?: string[]) => Promise<void> | void
   onFlashNodes?: (nodeIds: string[]) => void
   onToolLog?: (entry: ToolLogEntry) => void
   getStepBudget?: () => StepBudget
@@ -164,13 +165,14 @@ export function toolsToAI(
         const figma = options.getFigma()
         const nodeBefore =
           def.mutates && options.onToolLog ? captureNodeSnapshot(figma, args) : undefined
+        let resultNodeIds: string[] = []
 
         options.onBeforeExecute?.(def)
         try {
           let execResult = await def.execute(options.getFigma(), args)
-          if (def.mutates && options.onFlashNodes) {
-            const ids = extractNodeIds(execResult)
-            if (ids.length > 0) options.onFlashNodes(ids)
+          if (def.mutates) {
+            resultNodeIds = extractNodeIds(execResult)
+            if (resultNodeIds.length > 0) options.onFlashNodes?.(resultNodeIds)
           }
           emitToolLog(options, def, args, startTime, figma, nodeBefore, execResult)
           if (options.getStepBudget) {
@@ -182,7 +184,7 @@ export function toolsToAI(
           emitToolLog(options, def, args, startTime, figma, nodeBefore, null, errorMsg)
           return { error: errorMsg }
         } finally {
-          await options.onAfterExecute?.(def)
+          await options.onAfterExecute?.(def, resultNodeIds)
         }
       }
     }
