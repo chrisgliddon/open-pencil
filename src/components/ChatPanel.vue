@@ -8,11 +8,14 @@ import { copyChatLog } from '@/app/ai/debug'
 import { clearToolLogEntries, didHitStepLimit } from '@/app/ai/tools'
 import { activeTab } from '@/app/tabs'
 import AcpPermissionDialog from '@/components/chat/AcpPermissionDialog.vue'
+import AIProviderIcon from '@/components/chat/AIProviderIcon.vue'
+import AIProviderIndicator from '@/components/chat/AIProviderIndicator.vue'
 import ChatInput from '@/components/chat/ChatInput.vue'
 import ChatMessage from '@/components/chat/ChatMessage.vue'
 import AppTextButton from '@/components/ui/AppTextButton.vue'
 import ProviderSetup from '@/components/chat/ProviderSetup.vue'
 import { useAIChat } from '@/app/ai/chat/use'
+import { resolveAIProviderLabel } from '@/app/ai/provider-label'
 import { toast } from '@/app/shell/ui'
 import { useI18n } from '@open-pencil/vue'
 
@@ -22,9 +25,11 @@ import type { JsonObject } from '@open-pencil/scene-graph/primitives'
 
 const IS_DEV = import.meta.env.DEV
 
-const { isConfigured, ensureChat, resetChat } = useAIChat()
+const { isConfigured, ensureChat, resetChat, providerID } = useAIChat()
 const { copy } = useClipboard()
 const { dialogs } = useI18n()
+
+const providerLabel = computed(() => resolveAIProviderLabel(providerID.value))
 
 const chat = ref<Chat<UIMessage> | null>(null)
 
@@ -130,6 +135,9 @@ function handleClearChat() {
     <ProviderSetup v-if="!isConfigured" />
 
     <template v-else>
+      <!-- Pinned provider/agent indicator: shows which AI is active (icon +
+           name + model/mode) so it stays visible across the conversation. -->
+      <AIProviderIndicator />
       <ScrollAreaRoot class="min-h-0 flex-1">
         <ScrollAreaViewport class="h-full px-3 py-3 [&>div]:h-full">
           <!-- Empty state -->
@@ -149,9 +157,9 @@ function handleClearChat() {
             <!-- Thinking indicator: shown when AI is working but no visible activity -->
             <div v-if="isThinking" data-test-id="chat-typing-indicator" class="flex gap-2">
               <div
-                class="flex size-6 shrink-0 items-center justify-center rounded-full bg-muted/20 text-[10px] font-bold text-muted"
+                class="flex size-6 shrink-0 items-center justify-center rounded-full bg-muted/20 text-muted"
               >
-                AI
+                <AIProviderIcon :icon="providerLabel.icon" />
               </div>
               <div class="flex items-center gap-1 py-2">
                 <span

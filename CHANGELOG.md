@@ -4,6 +4,7 @@
 
 ### Added
 
+- Pin the active AI provider/agent at the top of the AI tab with a brand icon and name (plus the current model or Plan/Build mode), so it stays visible across the conversation instead of a generic "AI" badge. The thinking indicator now uses the same brand icon.
 - Import a Claude Design project folder or .zip from the Code panel and let the AI convert each screen into OpenPencil. Pick a folder or .zip, review the discovered screens, select which to convert, and the AI builds one page per screen on the canvas using the existing render tools.
 - Add an "Open Recent" submenu to the File menu that lists recently opened documents and re-opens them in one click, with a "Clear Recently Opened" option. Persists across launches and stays in sync in both the native (Tauri) and browser menus.
 - Import HTML, CSS, Tailwind, and JSX as editable documents from the app, CLI, and SDK, and export standalone browser-ready HTML with compiled CSS and optional external assets.
