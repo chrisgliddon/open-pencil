@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { useObjectUrl, watchDebounced } from '@vueuse/core'
+import { promiseTimeout, useObjectUrl, watchDebounced } from '@vueuse/core'
 import { computed, onBeforeUnmount, ref, shallowRef, watch } from 'vue'
 import {
   DialogClose,
@@ -151,6 +151,13 @@ async function refreshRowThumbs() {
   const next = new Map<string, string>()
   for (const asset of assets.value.slice(0, MAX_ROW_THUMBS)) {
     if (!asset.componentId) continue
+    // Yield between renders so large component libraries never freeze the
+    // UI; a newer refresh (or unmount) aborts this one at the next step.
+    await promiseTimeout(0)
+    if (requestId !== rowThumbRequestId) {
+      for (const url of next.values()) URL.revokeObjectURL(url)
+      return
+    }
     const data = await renderComponentPng(asset.componentId, ROW_THUMB_RENDER_PX)
     if (requestId !== rowThumbRequestId) {
       for (const url of next.values()) URL.revokeObjectURL(url)
