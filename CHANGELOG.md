@@ -4,6 +4,7 @@
 
 ### Added
 
+- Register fonts shipped inside an imported Claude Design project (`@font-face` TTFs in `_ds/…/fonts/`) with the editor at conversion time: imported text renders with the real brand fonts on canvas, the families appear in the font picker as project fonts, and the conversion prompt lists the exact family names to use.
 - Show real rendered thumbnails for components in the Assets panel list rows, refreshed live as the scene changes, instead of the generic component icon.
 - Place imported Claude Design project images as real image fills through a new `place_asset` AI tool — the agent references files by name (`assets-min/coin.png`) and the bytes never pass through the model.
 - Give the AI chat agent document-organization tools by default: `create_page`, `switch_page`, `list_pages`, `create_component`, and `create_instance` moved into the core tool set, and the system prompt gained a "Document organization" section (one page per flow, non-overlapping top-level frames on a strict grid, reusable elements as components on a Components page).
@@ -37,6 +38,8 @@
 
 ### Fixed
 
+- Make "Convert with AI" in the Claude Design importer actually open the desktop AI tab and show the running conversation. It previously set only the mobile drawer state, and the chat panel could stay bound to a stale session after provider-settings changes — the conversion then streamed invisibly. The chat panel now always renders the live chat session.
+- Keep the UI responsive while Assets panel thumbnails refresh — large component libraries no longer block the main thread during agent runs.
 - Render component previews in the Assets panel for components on any page — previously the details dialog fell back to a placeholder icon for components outside the current page.
 - Compute fonts and auto-layout for every page an AI tool touches, so screens rendered onto non-current pages (e.g. during project imports) no longer appear unstyled or unlaid-out.
 - Make the `switch_page` AI tool actually switch the visible page in the editor.
