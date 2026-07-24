@@ -14,9 +14,11 @@ import {
   type ProjectManifest
 } from '@/app/import-claude-design/read-project'
 import { convertProjectWithLLM } from '@/app/import-claude-design/convert'
+import { useAIChat } from '@/app/ai/chat/use'
 
 const { dialogs } = useI18n()
 const store = useEditorStore()
+const { activeTab } = useAIChat()
 
 const emit = defineEmits<{ close: [] }>()
 
@@ -96,12 +98,12 @@ async function convert() {
   converting.value = true
   error.value = ''
   try {
-    // Switching to the AI tab makes the streaming conversion visible.
+    // Switching to the AI tab makes the streaming conversion visible —
+    // `activeTab` drives the desktop properties tabs, `activeRibbonTab`
+    // drives the mobile drawer.
+    activeTab.value = 'ai'
     store.state.activeRibbonTab = 'ai'
-    const result = await convertProjectWithLLM(
-      manifest.value,
-      [...selectedScreens.value]
-    )
+    const result = await convertProjectWithLLM(manifest.value, [...selectedScreens.value])
     if (!result.ok) {
       error.value = result.error ?? 'Conversion failed.'
     } else {
@@ -122,7 +124,9 @@ async function convert() {
       </div>
       <AppTextButton
         data-test-id="import-project-close"
-        :ui="{ base: 'flex size-6 items-center justify-center rounded text-muted hover:bg-hover hover:text-surface' }"
+        :ui="{
+          base: 'flex size-6 items-center justify-center rounded text-muted hover:bg-hover hover:text-surface'
+        }"
         @click="emit('close')"
       >
         <icon-lucide-x class="size-3.5" />
