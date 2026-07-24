@@ -7,6 +7,7 @@ import type {
   IORegistry,
   RasterExportFormat
 } from '@open-pencil/core/io'
+import { findPageId } from '@open-pencil/core/io'
 import { renderNodesToImage } from '@open-pencil/core/io/formats/raster'
 import type { SceneGraph } from '@open-pencil/scene-graph'
 
@@ -111,7 +112,10 @@ export function createExportTargetActions(editor: Editor, state: EditorState, io
     const ids =
       nodeIds.length > 0 ? nodeIds : editor.graph.getChildren(state.currentPageId).map((n) => n.id)
     if (ids.length === 0) return null
-    return renderNodesToImage(renderer.ck, renderer, editor.graph, state.currentPageId, ids, {
+    // Render against the page that owns the nodes — component previews and
+    // exports must work for nodes on non-current pages too.
+    const pageId = findPageId(editor.graph, ids[0]) ?? state.currentPageId
+    return renderNodesToImage(renderer.ck, renderer, editor.graph, pageId, ids, {
       scale,
       format
     })

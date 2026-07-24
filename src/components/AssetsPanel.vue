@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { useObjectUrl } from '@vueuse/core'
-import { computed, ref, shallowRef, watch } from 'vue'
+import { useObjectUrl, watchDebounced } from '@vueuse/core'
+import { computed, onBeforeUnmount, ref, shallowRef, watch } from 'vue'
 import {
   DialogClose,
   DialogContent,
@@ -104,6 +104,18 @@ function clearPreview() {
   previewBlob.value = null
 }
 
+async function renderComponentPng(nodeId: string, fitPx: number): Promise<Uint8Array | null> {
+  const node = editor.getNode(nodeId)
+  if (!node) return null
+  const maxSize = Math.max(node.width, node.height, 1)
+  const scale = Math.min(fitPx / maxSize, 2)
+  try {
+    return await editor.renderExportImage([nodeId], scale, 'PNG')
+  } catch {
+    return null
+  }
+}
+
 async function updatePreview() {
   const requestId = ++previewRequestId
   const nodeId = selectedPreviewNodeId.value
@@ -112,17 +124,9 @@ async function updatePreview() {
     return
   }
 
-  const node = editor.getNode(nodeId)
-  if (!node) {
-    clearPreview()
-    return
-  }
-
   previewLoading.value = true
   try {
-    const maxSize = Math.max(node.width, node.height, 1)
-    const scale = Math.min(176 / maxSize, 2)
-    const data = await editor.renderExportImage([nodeId], scale, 'PNG')
+    const data = await renderComponentPng(nodeId, 176)
     if (requestId !== previewRequestId) return
     previewBlob.value = data ? new Blob([data], { type: 'image/png' }) : null
   } finally {
@@ -132,6 +136,41 @@ async function updatePreview() {
 
 watch([detailsOpen, selectedPreviewNodeId], updatePreview, {
   flush: 'post'
+})
+
+// Small live thumbnails for the asset list rows, regenerated (debounced)
+// whenever the scene changes. Keyed by asset id; object URLs are revoked on
+// every refresh and on unmount.
+const ROW_THUMB_RENDER_PX = 56
+const MAX_ROW_THUMBS = 150
+const rowThumbs = shallowRef<Map<string, string>>(new Map())
+let rowThumbRequestId = 0
+
+async function refreshRowThumbs() {
+  const requestId = ++rowThumbRequestId
+  const next = new Map<string, string>()
+  for (const asset of assets.value.slice(0, MAX_ROW_THUMBS)) {
+    if (!asset.componentId) continue
+    const data = await renderComponentPng(asset.componentId, ROW_THUMB_RENDER_PX)
+    if (requestId !== rowThumbRequestId) {
+      for (const url of next.values()) URL.revokeObjectURL(url)
+      return
+    }
+    if (data) next.set(asset.id, URL.createObjectURL(new Blob([data], { type: 'image/png' })))
+  }
+  const previous = rowThumbs.value
+  rowThumbs.value = next
+  for (const url of previous.values()) URL.revokeObjectURL(url)
+}
+
+watchDebounced(() => editor.state.sceneVersion, refreshRowThumbs, {
+  debounce: 600,
+  immediate: true
+})
+
+onBeforeUnmount(() => {
+  ++rowThumbRequestId
+  for (const url of rowThumbs.value.values()) URL.revokeObjectURL(url)
 })
 
 function openDetails(asset: LocalAsset) {
@@ -194,11 +233,19 @@ function insertSelectedAsset() {
         @click="openDetails(asset)"
         @dblclick="insertAsset(asset)"
       >
-        <component
-          :is="nodeIcon(asset.node)"
-          class="size-3.5 shrink-0 text-component"
+        <span
+          data-test-id="asset-thumb"
+          class="flex size-7 shrink-0 items-center justify-center overflow-hidden rounded border border-border bg-canvas/60"
           aria-hidden="true"
-        />
+        >
+          <img
+            v-if="rowThumbs.get(asset.id)"
+            :src="rowThumbs.get(asset.id)"
+            alt=""
+            class="max-h-full max-w-full object-contain"
+          />
+          <component v-else :is="nodeIcon(asset.node)" class="size-3.5 text-component" />
+        </span>
         <span class="min-w-0 flex-1">
           <span class="flex min-w-0 items-center gap-1.5">
             <span data-test-id="asset-name" class="truncate">{{ asset.name }}</span>
