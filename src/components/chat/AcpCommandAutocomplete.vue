@@ -55,7 +55,9 @@ function select(name: string) {
       @click="select(command.name)"
     >
       <span class="font-medium text-surface">/{{ command.name }}</span>
-      <span v-if="command.description" class="line-clamp-2 text-muted">{{ command.description }}</span>
+      <span v-if="command.description" class="line-clamp-2 text-muted">{{
+        command.description
+      }}</span>
     </button>
   </div>
 </template>

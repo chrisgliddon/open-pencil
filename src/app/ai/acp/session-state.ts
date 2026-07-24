@@ -44,9 +44,7 @@ export function modeLabel(id: string, fallback?: string | null): string {
   return fallback ?? id
 }
 
-function flattenOptions(
-  options: SessionConfigOption['options']
-): SessionConfigSelectOption[] {
+function flattenOptions(options: SessionConfigOption['options']): SessionConfigSelectOption[] {
   if (options.length === 0) return []
   // Options are either a flat list of options or a list of groups. Groups
   // carry their own `.options`; flatten them into a single list.

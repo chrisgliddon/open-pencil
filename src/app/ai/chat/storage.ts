@@ -59,6 +59,47 @@ export const customAPIType = useLocalStorage<'completions' | 'responses'>(
   'completions'
 )
 export const maxOutputTokens = useLocalStorage(`${STORAGE_PREFIX}ai-max-output-tokens`, 16384)
+
+// Per-ACP-agent default models, keyed by the conceptual mode slot the agent's
+// modes map onto (see slotForMode). '' / absent means "use the agent's own
+// default". Applied automatically when a session starts or the mode changes.
+export type ACPModeSlot = 'plan' | 'build' | 'auto'
+export type ACPModelDefaults = Partial<Record<ACPModeSlot, string>>
+
+/** A model advertised by an ACP agent, cached for the settings UI. */
+export interface ACPKnownModel {
+  id: string
+  name: string
+}
+
+export const acpModelDefaults = useLocalStorage<Record<string, ACPModelDefaults>>(
+  `${STORAGE_PREFIX}acp-model-defaults`,
+  {}
+)
+
+export const acpKnownModels = useLocalStorage<Record<string, ACPKnownModel[]>>(
+  `${STORAGE_PREFIX}acp-known-models`,
+  {}
+)
+
+export function acpDefaultModelFor(agentId: string, slot: ACPModeSlot): string {
+  return acpModelDefaults.value[agentId]?.[slot] ?? ''
+}
+
+export function setAcpDefaultModel(agentId: string, slot: ACPModeSlot, modelId: string): void {
+  const agentDefaults = { ...acpModelDefaults.value[agentId], [slot]: modelId }
+  acpModelDefaults.value = { ...acpModelDefaults.value, [agentId]: agentDefaults }
+}
+
+/** Cache the models an agent advertised so the settings UI can offer them. */
+export function rememberAcpModels(agentId: string, models: ACPKnownModel[]): void {
+  if (models.length === 0) return
+  acpKnownModels.value = {
+    ...acpKnownModels.value,
+    [agentId]: models.map(({ id, name }) => ({ id, name }))
+  }
+}
+
 export const pexelsApiKey = useLocalStorage(`${STORAGE_PREFIX}pexels-api-key`, '')
 export const unsplashAccessKey = useLocalStorage(`${STORAGE_PREFIX}unsplash-access-key`, '')
 

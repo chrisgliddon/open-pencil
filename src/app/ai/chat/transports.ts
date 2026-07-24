@@ -21,6 +21,8 @@ export interface ACPTransportHandle {
   readonly acpState: ShallowRef<ACPSessionState>
   setMode(modeId: string): Promise<void>
   setModel(modelId: string): Promise<void>
+  /** Spawn the agent session if needed and return its advertised state. */
+  ensureSessionState(): Promise<ACPSessionState>
 }
 
 type EditorStore = ReturnType<typeof getActiveEditorStore>

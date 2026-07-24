@@ -39,7 +39,12 @@ const acpAgentName = computed(() => {
 // the agent is spawned and the session is established. Until then, fall back to
 // the static agent-name badge.
 const acpStateReady = computed(
-  () => isACPProvider.value && !!acpTransport.value && acpTransport.value.acpState.value.modes.length + acpTransport.value.acpState.value.models.length > 0
+  () =>
+    isACPProvider.value &&
+    !!acpTransport.value &&
+    acpTransport.value.acpState.value.modes.length +
+      acpTransport.value.acpState.value.models.length >
+      0
 )
 const isCustomProvider = computed(
   () => providerID.value === 'openai-compatible' || providerID.value === 'anthropic-compatible'
