@@ -43,6 +43,13 @@ export interface AssetFile extends ProjectFile {
   bytes?: Uint8Array
 }
 
+export interface ProjectFontFile extends ProjectFile {
+  /** Family name from the project's @font-face rule, when found. */
+  family?: string
+  /** Raw bytes (ZIP imports) so the font can be registered for rendering. */
+  bytes?: Uint8Array
+}
+
 export interface DesignSystemInfo {
   /** Design-system folder name under _ds/. */
   name: string
@@ -73,6 +80,8 @@ export interface ProjectManifest {
   screenshots: string[]
   /** uploads/ raw reference files — listed only, not UI assets. */
   uploads: string[]
+  /** Font files shipped with the project, mapped to @font-face families. */
+  fonts: ProjectFontFile[]
   /** Parsed _ds/ design system, when present. */
   designSystem?: DesignSystemInfo
 }
@@ -83,15 +92,18 @@ const MAX_ASSETS = 160
 const MAX_DATA_FILES = 6
 const MAX_DATA_BYTES = 6_000
 const MAX_README_BYTES = 8_000
-/** ZIP entries above this are bundles (offline HTML, fonts) — never decompressed. */
+/** ZIP entries above this are bundles (e.g. offline HTML) — never decompressed. */
 const MAX_ZIP_ENTRY_BYTES = 2_000_000
+/** Fonts get a higher cap — CJK TTFs routinely exceed the general limit. */
+const MAX_FONT_BYTES = 24_000_000
 
 const JSX_EXTENSIONS = ['.jsx', '.tsx'] as const
 const CSS_EXTENSIONS = ['.css'] as const
 const ASSET_EXTENSIONS = ['.png', '.svg', '.webp', '.jpg', '.jpeg', '.gif'] as const
+const FONT_EXTENSIONS = ['.ttf', '.otf', '.woff', '.woff2'] as const
 const SKIP_DIRS = new Set(['node_modules', '.git', 'dist', 'build'])
 /** Bundles and binaries that are never useful to the converter. */
-const SKIP_EXTENSIONS = new Set(['.html', '.ttf', '.otf', '.woff', '.woff2', '.pdf', '.zip'])
+const SKIP_EXTENSIONS = new Set(['.html', '.pdf', '.zip'])
 
 const MIME_BY_EXT: Record<string, string> = {
   '.png': 'image/png',
@@ -128,6 +140,10 @@ function shouldSkipFile(relativePath: string): boolean {
 
 function isImage(relativePath: string): boolean {
   return ASSET_EXTENSIONS.includes(extname(relativePath) as (typeof ASSET_EXTENSIONS)[number])
+}
+
+function isFont(relativePath: string): boolean {
+  return FONT_EXTENSIONS.includes(extname(relativePath) as (typeof FONT_EXTENSIONS)[number])
 }
 
 function pathSegments(relativePath: string): string[] {
@@ -215,6 +231,48 @@ function parseDesignSystemCards(manifestJson: string): string[] {
 
 type ReadText = (file: ProjectFile) => Promise<string>
 
+interface FontFaceRule {
+  family: string
+  src: string
+}
+
+function parseFontFaces(cssSource: string): FontFaceRule[] {
+  const rules: FontFaceRule[] = []
+  for (const block of cssSource.match(/@font-face\s*\{[^}]*\}/g) ?? []) {
+    const family = /font-family:\s*['"]?([^'";}]+)/.exec(block)?.[1]?.trim()
+    const src = /url\(\s*['"]?([^'")]+)/.exec(block)?.[1]?.trim()
+    if (family && src) rules.push({ family, src })
+  }
+  return rules
+}
+
+// Resolve an @font-face url() relative to its stylesheet's directory.
+function resolveRelativePath(fromDir: string, target: string): string {
+  const segments = fromDir ? fromDir.split('/') : []
+  for (const part of target.replace(/^\.\//, '').split('/')) {
+    if (part === '..') segments.pop()
+    else if (part !== '.' && part !== '') segments.push(part)
+  }
+  return segments.join('/')
+}
+
+// Assign @font-face family names to the collected font files, matching by
+// resolved path first and by basename as a fallback.
+function applyFontFaceFamilies(fonts: ProjectFontFile[], cssFiles: CssFile[]): void {
+  const byPath = new Map(fonts.map((font) => [font.relativePath, font]))
+  const byBase = new Map(fonts.map((font) => [basename(font.relativePath), font]))
+  for (const css of cssFiles) {
+    const cssDir = css.relativePath.includes('/')
+      ? css.relativePath.slice(0, css.relativePath.lastIndexOf('/'))
+      : ''
+    for (const rule of parseFontFaces(css.source)) {
+      const resolved = resolveRelativePath(cssDir, rule.src)
+      const target = byPath.get(resolved) ?? byBase.get(basename(rule.src))
+      if (target && !target.family) target.family = rule.family
+    }
+  }
+}
+
 interface ManifestBucket {
   screens: ScreenFile[]
   css: CssFile[]
@@ -223,6 +281,7 @@ interface ManifestBucket {
   dataFiles: CssFile[]
   screenshots: string[]
   uploads: string[]
+  fonts: ProjectFontFile[]
   app?: ScreenFile
   readme?: string
   designSystem?: DesignSystemInfo
@@ -322,12 +381,19 @@ async function buildManifestFromFiles(
     dataFiles: [],
     screenshots: [],
     uploads: [],
+    fonts: [],
     seenCss: new Set(),
     assetBytes
   }
 
   for (const file of files) {
     const top = pathSegments(file.relativePath)[0] ?? ''
+
+    // Fonts can live anywhere (usually _ds/<name>/fonts/) — collect globally.
+    if (isFont(file.relativePath)) {
+      bucket.fonts.push({ ...file, bytes: assetBytes?.get(file.relativePath) })
+      continue
+    }
 
     // Reference folders: listed for context, never converted or inlined.
     if (top === 'screenshots') {
@@ -357,17 +423,21 @@ async function buildManifestFromFiles(
     return !(base.endsWith('.min.css') && cssNames.has(base.replace(/\.min\.css$/, '.css')))
   })
 
+  const css = [...bucket.tokensCss, ...dedupedCss]
+  applyFontFaceFamilies(bucket.fonts, css)
+
   return {
     rootPath,
     name,
     screens: bucket.screens,
-    css: [...bucket.tokensCss, ...dedupedCss],
+    css,
     assets: bucket.assets,
     app: bucket.app,
     readme: bucket.readme,
     dataFiles: bucket.dataFiles,
     screenshots: bucket.screenshots,
     uploads: bucket.uploads,
+    fonts: bucket.fonts,
     designSystem: bucket.designSystem
   }
 }
@@ -401,7 +471,7 @@ export async function readProjectZip(file: File): Promise<ProjectManifest> {
   const entries = unzipSync(bytes, {
     filter: (entry) =>
       !entry.name.endsWith('/') &&
-      entry.originalSize <= MAX_ZIP_ENTRY_BYTES &&
+      entry.originalSize <= (isFont(entry.name) ? MAX_FONT_BYTES : MAX_ZIP_ENTRY_BYTES) &&
       !shouldSkipFile(entry.name)
   })
   const files: ProjectFile[] = []
@@ -442,7 +512,7 @@ export async function readProjectZip(file: File): Promise<ProjectManifest> {
   }
   const assetBytes = new Map<string, Uint8Array>()
   for (const projectFile of normalized) {
-    if (!isImage(projectFile.relativePath)) continue
+    if (!isImage(projectFile.relativePath) && !isFont(projectFile.relativePath)) continue
     const data =
       contents.get(projectFile.relativePath) ??
       contents.get(`${rootPrefix}${projectFile.relativePath}`)

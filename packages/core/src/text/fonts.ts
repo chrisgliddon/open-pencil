@@ -56,6 +56,7 @@ export class FontManager {
   private cjkFallbackPromise: Promise<string[]> | null = null
   private arabicFallbackFamilies: string[] = []
   private arabicFallbackPromise: Promise<string[]> | null = null
+  private projectFamilies = new Map<string, FontFamilyOption>()
 
   attachProvider(_canvasKit: CanvasKit, provider: TypefaceFontProvider): void {
     this.fontProviders.add(provider)
@@ -201,7 +202,19 @@ export class FontManager {
       }
     }
     for (const font of fonts) byFamily.set(font.family, { family: font.family, source: 'local' })
+    for (const option of this.projectFamilies.values()) byFamily.set(option.family, option)
     return [...byFamily.values()].sort((a, b) => a.family.localeCompare(b.family))
+  }
+
+  /**
+   * Register a font supplied by the open project (e.g. a TTF bundled in an
+   * imported design ZIP) under its @font-face family name. The font renders
+   * immediately in CanvasKit and the browser, and the family is listed by
+   * `listFamilyOptions()` with source 'project'.
+   */
+  registerProjectFont(family: string, buffer: ArrayBuffer, style = 'Regular'): void {
+    this.registerAndCache(family, style, buffer)
+    this.projectFamilies.set(family, { family, source: 'project' })
   }
 
   preloadWebFontFamilies(): void {

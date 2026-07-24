@@ -62,6 +62,7 @@ export function useAIChat() {
     isConfigured,
     ensureChat: chatSession.ensureChat,
     resetChat: chatSession.resetChat,
-    acpTransport: chatSession.acpTransport
+    acpTransport: chatSession.acpTransport,
+    activeChat: chatSession.activeChat
   }
 }

@@ -4,9 +4,12 @@
 // image bytes ever passing through the model context (same idea as the
 // `stock_photo` tool, but sourced from the imported ZIP/folder).
 import { BLACK } from '@open-pencil/core/constants'
+import { fontManager } from '@open-pencil/core/text'
 import { defineTool, type ToolDef } from '@open-pencil/core/tools'
 
 import type { EditorStore } from '@/app/editor/active-store'
+
+import type { ProjectFontFile } from './read-project'
 
 export interface ImportAssetSource {
   /** Path relative to the imported project root, e.g. "assets-min/coin.png". */
@@ -41,6 +44,31 @@ export function registerImportAssets(store: EditorStore, sources: ImportAssetSou
     if (!map.has(base)) map.set(base, source)
   }
   registries.set(store, map)
+}
+
+/**
+ * Register the project's @font-face fonts with the shared font manager so
+ * imported text renders with the real brand fonts (and the families appear
+ * in the font picker as project fonts). Returns the registered family names.
+ */
+export async function registerImportFonts(fonts: ProjectFontFile[]): Promise<string[]> {
+  const families: string[] = []
+  for (const font of fonts) {
+    if (!font.family) continue
+    let bytes = font.bytes ?? null
+    if (!bytes && font.absolutePath) {
+      try {
+        const { readFile } = await import('@tauri-apps/plugin-fs')
+        bytes = await readFile(font.absolutePath)
+      } catch {
+        bytes = null
+      }
+    }
+    if (!bytes) continue
+    fontManager.registerProjectFont(font.family, bytes.slice().buffer)
+    families.push(font.family)
+  }
+  return families
 }
 
 function lookupAsset(store: EditorStore, name: string): ImportAssetSource | null {

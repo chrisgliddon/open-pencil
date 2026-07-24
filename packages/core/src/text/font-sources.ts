@@ -8,7 +8,7 @@ export interface FontInfo {
 }
 
 export type LocalFontAccessState = 'unsupported' | 'prompt' | 'granted' | 'denied'
-export type FontFamilySource = 'local' | 'bundled' | 'fallback' | WebFontProviderId
+export type FontFamilySource = 'local' | 'bundled' | 'fallback' | 'project' | WebFontProviderId
 
 export interface FontFamilyOption {
   family: string

@@ -6,7 +6,7 @@
 import { useAIChat } from '@/app/ai/chat/use'
 import { getActiveEditorStore } from '@/app/editor/active-store'
 
-import { registerImportAssets } from './assets'
+import { registerImportAssets, registerImportFonts } from './assets'
 import CONVERSION_RULES from './prompt.md?raw'
 import type { CssFile, ProjectManifest, ScreenFile } from './read-project'
 
@@ -91,6 +91,15 @@ function namesBlock(title: string, names: string[]): string {
   return `\n## ${title}\n${lines}${more}\n`
 }
 
+function fontsBlock(manifest: ProjectManifest): string {
+  const families = manifest.fonts
+    .map((font) => font.family)
+    .filter((family): family is string => !!family)
+  if (families.length === 0) return ''
+  const lines = [...new Set(families)].map((family) => `- "${family}"`).join('\n')
+  return `\n## Project fonts (registered in the editor — set \`font\` to EXACTLY these names)\n${lines}\n`
+}
+
 function dataFilesBlock(manifest: ProjectManifest): string {
   if (manifest.dataFiles.length === 0) return ''
   const blocks = manifest.dataFiles
@@ -117,7 +126,7 @@ export function buildConversionPrompt(
 
   return `${CONVERSION_RULES}
 ## Project: ${manifest.name}
-${appBlock}${readmeBlock}${designSystemBlock(manifest)}${cssBlock(manifest, screens)}${assetList(manifest)}${namesBlock('Screenshots (names only — flow/state hints)', manifest.screenshots)}${dataFilesBlock(manifest)}
+${appBlock}${readmeBlock}${designSystemBlock(manifest)}${cssBlock(manifest, screens)}${assetList(manifest)}${fontsBlock(manifest)}${namesBlock('Screenshots (names only — flow/state hints)', manifest.screenshots)}${dataFilesBlock(manifest)}
 ## Screens to convert (${screens.length})
 ${screenText}
 
@@ -144,7 +153,13 @@ export async function convertProjectWithLLM(
   const screens = selectedScreens.slice(0, MAX_SCREENS_PER_PASS)
   const prompt = buildConversionPrompt(manifest, screens)
   try {
-    registerImportAssets(getActiveEditorStore(), manifest.assets)
+    const store = getActiveEditorStore()
+    registerImportAssets(store, manifest.assets)
+    const projectFonts = await registerImportFonts(manifest.fonts)
+    if (projectFonts.length > 0) {
+      store.renderer?.invalidateAllPictures()
+      store.requestRender()
+    }
     const chat = await ensureChat()
     if (!chat) return { ok: false, error: 'Chat session is not available.' }
     await chat.sendMessage({ text: prompt })

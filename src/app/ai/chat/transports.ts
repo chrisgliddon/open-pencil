@@ -7,11 +7,11 @@ import type { ComputedRef, Ref, ShallowRef } from 'vue'
 import { ACP_AGENTS } from '@open-pencil/core/constants'
 import type { ACPAgentID, AIProviderID } from '@open-pencil/core/constants'
 
+import type { ACPSessionState } from '@/app/ai/acp/session-state'
 import { createLanguageModel, resolveLanguageModelID } from '@/app/ai/chat/model'
 import SYSTEM_PROMPT from '@/app/ai/chat/system-prompt.md?raw'
 import { MAX_AGENT_STEPS, createAITools, recordStepUsage, resetRunSteps } from '@/app/ai/tools'
 import type { getActiveEditorStore } from '@/app/editor/active-store'
-import type { ACPSessionState } from '@/app/ai/acp/session-state'
 
 // The subset of ACPChatTransport the session manager + UI need. Importing the
 // full class here would pull the ACP SDK into the non-ACP path; this interface
@@ -144,6 +144,10 @@ export function createChatSessionManager({
   let chat: Chat<UIMessage> | null = null
   let acpTransportInstance: ACPTransportHandle | null = null
   const acpTransport = shallowRef<ACPTransportHandle | null>(null)
+  // Reactive handle to the current Chat so every consumer (ChatPanel, the
+  // Claude Design importer, …) renders the same live session even when
+  // ensureChat replaces the instance (settings change, document switch).
+  const activeChat = shallowRef<Chat<UIMessage> | null>(null)
   let overrideTransport: (() => ChatTransport<UIMessage>) | null = null
 
   function markTransportDirty() {
@@ -196,12 +200,14 @@ export function createChatSessionManager({
       currentChatStore = store
       transportDirty = false
     }
+    activeChat.value = chat
     return chat
   }
 
   function resetChat() {
     if (currentChatStore) currentChatMessages.delete(currentChatStore)
     chat = null
+    activeChat.value = null
     currentChatStore = null
     transportDirty = false
   }
@@ -211,5 +217,12 @@ export function createChatSessionManager({
     markTransportDirty()
   }
 
-  return { ensureChat, resetChat, markTransportDirty, setOverrideTransport, acpTransport }
+  return {
+    ensureChat,
+    resetChat,
+    markTransportDirty,
+    setOverrideTransport,
+    acpTransport,
+    activeChat
+  }
 }

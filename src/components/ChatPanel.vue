@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ScrollAreaRoot, ScrollAreaScrollbar, ScrollAreaThumb, ScrollAreaViewport } from 'reka-ui'
 import { refAutoReset, useClipboard } from '@vueuse/core'
-import { computed, markRaw, nextTick, ref, watch } from 'vue'
+import { computed, nextTick, ref, watch } from 'vue'
 
 import { getAcpDebugText, clearAcpDebugLog, hasAcpDebugEntries } from '@/app/ai/acp/transport'
 import { copyChatLog } from '@/app/ai/debug'
@@ -19,28 +19,24 @@ import { resolveAIProviderLabel } from '@/app/ai/provider-label'
 import { toast } from '@/app/shell/ui'
 import { useI18n } from '@open-pencil/vue'
 
-import type { Chat } from '@ai-sdk/vue'
-import type { UIMessage } from 'ai'
 import type { JsonObject } from '@open-pencil/scene-graph/primitives'
 
 const IS_DEV = import.meta.env.DEV
 
-const { isConfigured, ensureChat, resetChat, providerID } = useAIChat()
+const { isConfigured, ensureChat, resetChat, providerID, activeChat } = useAIChat()
 const { copy } = useClipboard()
 const { dialogs } = useI18n()
 
 const providerLabel = computed(() => resolveAIProviderLabel(providerID.value))
 
-const chat = ref<Chat<UIMessage> | null>(null)
+// Bind the session manager's reactive chat so this panel always shows the
+// live session, including runs started elsewhere (e.g. the Claude Design
+// importer) or after ensureChat replaces the instance.
+const chat = activeChat
 
-void ensureChat()
-  .then((c) => {
-    if (c) chat.value = markRaw(c)
-    return undefined
-  })
-  .catch((error: unknown) => {
-    toast.error(error instanceof Error ? error.message : 'Failed to initialize chat')
-  })
+void ensureChat().catch((error: unknown) => {
+  toast.error(error instanceof Error ? error.message : 'Failed to initialize chat')
+})
 const messagesEnd = ref<HTMLDivElement>()
 const debugCopied = refAutoReset(false, 1500)
 const acpLogCopied = refAutoReset(false, 1500)
@@ -85,16 +81,14 @@ watch(
 watch(
   () => activeTab.value?.id,
   async () => {
-    const nextChat = await ensureChat()
-    chat.value = nextChat ? markRaw(nextChat) : null
+    await ensureChat()
   }
 )
 
 async function handleSubmit(text: string) {
   if (status.value === 'streaming' || status.value === 'submitted') return
   try {
-    const c = await ensureChat()
-    if (c) chat.value = markRaw(c)
+    await ensureChat()
   } catch (e) {
     console.error('Failed to initialize chat:', e)
     toast.error(e instanceof Error ? e.message : String(e))
