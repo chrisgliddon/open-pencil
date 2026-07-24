@@ -32,7 +32,9 @@ function claudeDesignZip(): File {
     'Birthday.data.js': strToU8('var LAYERS = ["sponge"]'),
     'README.md': strToU8('# Party Parrot World'),
     '_ds/ppw-ds/_ds_manifest.json': strToU8(DS_MANIFEST),
-    '_ds/ppw-ds/colors_and_type.css': strToU8(':root { --moss: #4a6f3a; }'),
+    '_ds/ppw-ds/colors_and_type.css': strToU8(
+      "@font-face { font-family: 'Brand Pop'; src: url('fonts/brand.ttf') format('truetype'); }\n:root { --moss: #4a6f3a; }"
+    ),
     '_ds/ppw-ds/README.md': strToU8('# PPW Design System'),
     '_ds/ppw-ds/ui_kits/game-hud/styles.css': strToU8('.toolbar { gap: 8px; }'),
     '_ds/ppw-ds/fonts/brand.ttf': strToU8('not-a-real-font'),
@@ -86,6 +88,15 @@ describe('readProjectZip — Claude Design export anatomy', () => {
     const coin = manifest.assets.find((asset) => asset.relativePath === 'assets-min/coin.png')
     expect(coin?.bytes).toBeDefined()
     expect(coin?.mimeType).toBe('image/png')
+  })
+
+  test('maps @font-face families onto shipped font files with bytes', async () => {
+    const manifest = await readProjectZip(claudeDesignZip())
+
+    expect(manifest.fonts).toHaveLength(1)
+    expect(manifest.fonts[0].relativePath).toBe('_ds/ppw-ds/fonts/brand.ttf')
+    expect(manifest.fonts[0].family).toBe('Brand Pop')
+    expect(manifest.fonts[0].bytes).toBeDefined()
   })
 
   test('lists screenshots and uploads as reference context only', async () => {

@@ -36,7 +36,7 @@ Convert this Claude Design project into a well-organized OpenPencil document. Yo
 - Translate React + CSS into OpenPencil JSX: resolve CSS classes to inline props (bg, rounded, p, flex, gap, size, color, weight, …). Colors as hex. No className, no CSS classes, no `style` prop.
 - The design-token CSS (colors, type scale, radii, shadows) is authoritative — use its exact values, not approximations.
 - Use the data files for realistic text content instead of lorem ipsum.
-- Match the source project's brand from the README/design-system context. If the brand fonts are custom TTFs, substitute the closest Google Fonts family and note the substitution in your summary.
+- Match the source project's brand from the README/design-system context. If a "Project fonts" list appears below, those families are registered in the editor — set `font` to exactly those names. Only substitute the closest Google Fonts family when a font is NOT in that list, and note the substitution in your summary.
 - Screenshot filenames hint at flows and states ("01-invite", "02-mint") — use them to group screens and pick representative states. You cannot view the images themselves.
 
 ## Workflow
