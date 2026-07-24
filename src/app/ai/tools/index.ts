@@ -2,6 +2,7 @@ import { valibotSchema } from '@ai-sdk/valibot'
 import { tool } from 'ai'
 import * as v from 'valibot'
 
+import { findPageId } from '@open-pencil/core/io'
 import { computeAllLayouts } from '@open-pencil/core/layout'
 import { CORE_TOOLS, toolsToAI } from '@open-pencil/core/tools'
 import type { StepBudget, ToolLogEntry } from '@open-pencil/core/tools'
@@ -11,6 +12,7 @@ import { makeFigmaFromStore } from '@/app/automation/bridge/figma-factory'
 import { getActiveEditorStore } from '@/app/editor/active-store'
 import type { EditorStore } from '@/app/editor/active-store'
 import { ensureGraphFonts } from '@/app/editor/fonts'
+import { createPlaceAssetTool } from '@/app/import-claude-design/assets'
 
 export const MAX_AGENT_STEPS = 50
 
@@ -87,7 +89,7 @@ export function createAITools(store: EditorStore) {
   const runState = getRunState(store)
 
   return toolsToAI(
-    CORE_TOOLS,
+    [...CORE_TOOLS, createPlaceAssetTool(store)],
     {
       getFigma: () => makeFigmaFromStore(store),
       onBeforeExecute: (def) => {
@@ -95,12 +97,21 @@ export function createAITools(store: EditorStore) {
           beforeSnapshot = store.snapshotPage()
         }
       },
-      onAfterExecute: async (def) => {
+      onAfterExecute: async (def, resultNodeIds) => {
         if (def.mutates) {
-          const pageId = store.state.currentPageId
-          const pageNode = store.graph.getNode(pageId)
-          if (pageNode) await ensureGraphFonts(store.graph, pageNode.childIds, store.renderer)
-          computeAllLayouts(store.graph, pageId)
+          // Recompute fonts/layout for every page the tool touched — agents
+          // render onto non-current pages (e.g. `render` with a page
+          // `parent_id` during project imports), not just the visible one.
+          const pageIds = new Set([store.state.currentPageId])
+          for (const nodeId of resultNodeIds ?? []) {
+            const pageId = findPageId(store.graph, nodeId)
+            if (pageId) pageIds.add(pageId)
+          }
+          for (const pageId of pageIds) {
+            const pageNode = store.graph.getNode(pageId)
+            if (pageNode) await ensureGraphFonts(store.graph, pageNode.childIds, store.renderer)
+            computeAllLayouts(store.graph, pageId)
+          }
           store.requestRender()
           if (beforeSnapshot) {
             const before = beforeSnapshot

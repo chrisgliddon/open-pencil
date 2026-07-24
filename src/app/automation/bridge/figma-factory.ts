@@ -10,6 +10,12 @@ export function makeFigmaFromStore(
   const api = new FigmaAPI(store.graph)
   api.setRenderer(store.renderer ?? null)
   api.currentPage = api.wrapNode(pageId)
+  // Mirror tool-driven page switches (e.g. `switch_page`) into the editor so
+  // the visible canvas follows the agent. Set after the initial assignment
+  // above so constructing the bridge never triggers a redundant switch.
+  api.onCurrentPageChange = (nextPageId) => {
+    if (nextPageId !== store.state.currentPageId) void store.switchPage(nextPageId)
+  }
   api.currentPage.selection = [...store.state.selectedIds]
     .map((id) => api.getNodeById(id))
     .filter((n): n is NonNullable<typeof n> => n !== null)
