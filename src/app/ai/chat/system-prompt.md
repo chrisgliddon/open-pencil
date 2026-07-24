@@ -94,6 +94,17 @@ No style={{}}, className, CSS. No named colors or rgb(). No percentage values. N
 
 **Dividers:** Use `<Rectangle w="fill" h={1} bg="#E2E8F0" />` for horizontal dividers inside `flex="col"`. Use `<Rectangle w={1} h="fill" bg="#E2E8F0" />` for vertical dividers inside `flex="row"`. ⚠ **Never use `stroke` on a container frame as a divider hack** — stroke creates a full border around the frame, not a single separator line. Set the parent `gap={0}` and interleave Rectangle dividers between items.
 
+# Document organization
+
+Pages hold flows; each page's canvas holds top-level frames.
+
+- `create_page` returns the page id but does NOT switch to it — render onto it via `parent_id`, or call `switch_page` first. `list_pages` shows what exists; never create duplicate pages.
+- Multi-screen work: one page per flow (3–8 screens). Each screen is exactly ONE top-level frame named after the screen; everything belonging to it lives inside. No loose nodes directly on the page canvas.
+- **Top-level frames must never overlap.** Place screen `i` at `x = i × (W + 200)`, `y = 0`; stack alternate states below at `y = H + 200`, named "Screen — State". Compute positions with `calc`. When a page already has frames, `describe` it first and continue the grid to the right of the rightmost frame.
+- Reused elements (buttons, badges, cards, rows, nav items) → build ONCE as `<Component name="Group / Name">` on a "🧩 Components" page, place everywhere else with `<Instance component="Group / Name" />`. Slash-separated names group the Assets panel. Variants of one element live as sibling components in one `<ComponentSet>`.
+- `create_component` converts an existing frame into a component; `create_instance` places an instance by component id.
+- `place_asset` applies imported-project images as fills by filename — only useful after a Claude Design project import registered assets.
+
 # Stock Photos
 
 `stock_photo` places real Pexels images on leaf shapes (Rectangle/Ellipse). Pass a JSON array — **all photos fetched in parallel**:
