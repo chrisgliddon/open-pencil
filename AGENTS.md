@@ -8,14 +8,24 @@ Vue 3 + CanvasKit (Skia WASM) + Yoga WASM design editor. Tauri v2 desktop, also 
 
 This repo is a fork of `open-pencil/open-pencil`. Two remotes:
 
-- `origin` → `chrisgliddon/open-pencil` (this fork — push and open PRs here)
+- `origin` → `chrisgliddon/open-pencil` (this fork — push fork work here)
 - `upstream` → `open-pencil/open-pencil` (the original — pull improvements from here)
 
-Keep `master` as a clean merge target that tracks `upstream/master`. Never commit customizations directly to `master`.
+### Branch model
 
-- Create each customization on its own `feat/*` or `fix/*` branch based on `upstream/master` (not `master`), so it stays independently revertible and PR-able upstream.
-- Merge feature branches into `master` with `--no-ff` so each customization is a distinct merge unit.
-- Pull upstream improvements with `git fetch upstream && git merge upstream/master`.
+The fork carries three long-lived branches on `origin`; none of them is named `master`:
+
+- `dev` — the fork's working branch. All custom work lands here first. This is where you commit day-to-day.
+- `staging` — release candidate. Fast-forward from `dev` when a release is ready for validation.
+- `production` — released. Fast-forward from `staging` when a release ships. This is what deployed builds are cut from.
+
+`master` is **upstream-only**. The local `master` branch tracks `upstream/master` and exists solely as a clean reference for fetching and merging upstream improvements. Never push `master` to `origin` — the fork has no `origin/master`. Never commit customizations directly to `master`.
+
+### Working on the fork
+
+- Commit customizations directly on `dev` (or short-lived `feat/*` / `fix/*` branches off `dev` if you want them independently revertible).
+- Pull upstream improvements into `dev` with `git fetch upstream && git merge upstream/master` (run from `dev`). Resolve conflicts there.
+- Promote work through the pipeline with fast-forwards: `git checkout staging && git merge --ff-only dev`, then `git checkout production && git merge --ff-only staging`.
 - When porting changes bundled in old WIP commits, split them by concern onto separate branches; don't re-bundle unrelated work.
 - Build artifacts (e.g. `desktop/binaries/`) must be gitignored, never committed.
 
@@ -118,14 +128,14 @@ App dialogs compose the Reka-backed components under `src/components/ui/dialog/`
    - Creates a draft GitHub Release whose title exactly matches the tag and whose body is the matching version section from `CHANGELOG.md`
    - Uploads platform installers, updater signatures, and `latest.json`
    - Publishes public workspace packages to npm with provenance. Keep the exact package list in sync with `.github/workflows/build.yml` and `tools/release-packages/src/publish-dirs.ts`.
-7. The production web app/docs deploy workflows (`app.yml`, `docs.yml`) also trigger on `v*` tags. They do **not** deploy on ordinary `master` pushes.
+7. The production web app/docs deploy workflows (`app.yml`, `docs.yml`) also trigger on `v*` tags. They do **not** deploy on ordinary branch pushes.
 8. Verify the draft’s title and changelog-derived body, then publish it. Publishing the GitHub Release triggers `homebrew.yml`, which updates the Homebrew cask from the signed macOS updater archives.
 
 ### CI workflows
 
 Key workflows live in `.github/workflows/`. Use `build.yml` as the source of truth for release packaging and npm publishing, `ci.yml` / `heavy-tests.yml` for validation gates, and `app.yml` / `docs.yml` for Cloudflare Pages deploys.
 
-Production Cloudflare Pages deploys are intentionally release/manual only: `app.yml` and `docs.yml` run on `v*` tags and `workflow_dispatch`, not on `master` pushes. To deploy manually, run the relevant workflow from GitHub Actions (`Deploy app` or `Deploy docs`) on the desired ref; the workflow deploys to the configured production branch (`master`).
+Production Cloudflare Pages deploys are intentionally release/manual only: `app.yml` and `docs.yml` run on `v*` tags and `workflow_dispatch`, not on branch pushes. To deploy manually, run the relevant workflow from GitHub Actions (`Deploy app` or `Deploy docs`) on the `production` branch.
 
 ## Documentation
 
