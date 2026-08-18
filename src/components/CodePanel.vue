@@ -24,6 +24,7 @@ import { starterSourceFor, type CodeSource } from '@/app/code/templates'
 import { useEditorStore } from '@/app/editor/active-store'
 import AppSelect from '@/components/ui/AppSelect.vue'
 import AppTextButton from '@/components/ui/AppTextButton.vue'
+import ImportProjectPanel from '@/components/chat/ImportProjectPanel.vue'
 import Tip from '@/components/ui/Tip.vue'
 import statusTheme from '@/theme/status'
 
@@ -36,6 +37,7 @@ const { dialogs } = useI18n()
 const { copy, copied } = useClipboard({ copiedDuring: 2000 })
 const { copy: copyReference, copied: copiedReference } = useClipboard({ copiedDuring: 2000 })
 const source = ref<CodeSource>('design-jsx')
+const showProjectImporter = ref(false)
 const draft = ref('')
 const baseline = ref('')
 const status = ref<'idle' | 'updating' | 'updated' | 'error'>('idle')
@@ -206,6 +208,10 @@ watch(
   { immediate: true }
 )
 
+function toggleProjectImporter(): void {
+  showProjectImporter.value = !showProjectImporter.value
+}
+
 onBeforeUnmount(() => {
   disposing = true
   void commitCurrentSession()
@@ -230,6 +236,14 @@ watch(
         :ui="{ trigger: 'h-7 min-w-0 flex-1 text-[11px]' }"
         @update:model-value="changeSource"
       />
+      <AppTextButton
+        data-test-id="code-panel-import-project-toggle"
+        :ui="{ base: 'flex items-center gap-1 rounded px-1.5 py-0.5 text-[11px] hover:bg-hover' }"
+        @click="toggleProjectImporter"
+      >
+        <icon-lucide-folder-input class="size-3" />
+        {{ dialogs.importProject }}
+      </AppTextButton>
       <Tip v-if="source !== 'html-css'" :label="dialogs.copyJSXReference">
         <AppTextButton
           data-test-id="code-panel-copy-ref"
@@ -242,7 +256,12 @@ watch(
       </Tip>
     </header>
 
-    <div class="flex min-h-0 flex-1 flex-col overflow-hidden">
+    <ImportProjectPanel
+      v-if="showProjectImporter"
+      @close="showProjectImporter = false"
+    />
+
+    <div v-else class="flex min-h-0 flex-1 flex-col overflow-hidden">
       <CodeEditor
         :model-value="draft"
         :language="source"
@@ -253,7 +272,7 @@ watch(
     </div>
 
     <div
-      v-if="error"
+      v-if="error && !showProjectImporter"
       role="alert"
       data-test-id="code-panel-error"
       class="shrink-0 border-t border-[var(--color-error-border)] bg-[var(--color-error-bg)] px-3 py-2 text-[11px] leading-snug text-[var(--color-error)]"
@@ -262,6 +281,7 @@ watch(
     </div>
 
     <footer
+      v-if="!showProjectImporter"
       class="flex shrink-0 items-center justify-between gap-2 border-t border-border px-3 py-2"
     >
       <span

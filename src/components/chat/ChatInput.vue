@@ -5,6 +5,9 @@ import { computed, onBeforeUnmount, ref } from 'vue'
 
 import ChatProfileSelect from '@/components/chat/ChatProfileSelect.vue'
 import ProviderModelSelect from '@/components/chat/ProviderModelSelect.vue'
+import AcpCommandAutocomplete from '@/components/chat/AcpCommandAutocomplete.vue'
+import AcpModeToggle from '@/components/chat/AcpModeToggle.vue'
+import AcpModelSelect from '@/components/chat/AcpModelSelect.vue'
 import IconButton from '@/components/ui/IconButton.vue'
 import InputGroup from '@/components/ui/InputGroup.vue'
 import { useAIChat } from '@/app/ai/chat/use'
@@ -20,7 +23,7 @@ import { useI18n } from '@open-pencil/vue'
 
 import { ACP_AGENTS } from '@open-pencil/core/constants'
 
-const { providerID, providerDef, modelID, customModelID } = useAIChat()
+const { providerID, providerDef, modelID, customModelID, acpTransport } = useAIChat()
 const { dialogs } = useI18n()
 
 const { status, disabled = false } = defineProps<{
@@ -81,6 +84,16 @@ const acpAgentName = computed(() => {
   const agentId = providerID.value.replace('acp:', '')
   return ACP_AGENTS.find((a) => a.id === agentId)?.name ?? agentId
 })
+// ACP session controls (Plan/Build toggle + model dropdown) appear once the
+// agent advertises its modes/models; until then fall back to the agent-name
+// badge so the user still sees which agent is active.
+const acpStateReady = computed(
+  () =>
+    !!acpTransport.value &&
+    acpTransport.value.acpState.value.modes.length +
+      acpTransport.value.acpState.value.models.length >
+      0
+)
 const isCustomProvider = computed(
   () => providerID.value === 'openai-compatible' || providerID.value === 'anthropic-compatible'
 )
@@ -129,6 +142,10 @@ function handleInputKeydown(event: KeyboardEvent) {
   if (target instanceof HTMLElement) target.closest('form')?.requestSubmit()
 }
 
+function handleACPCommand(command: string) {
+  input.value = command
+}
+
 function handleSubmit(e: Event) {
   e.preventDefault()
   const text = input.value.trim()
@@ -144,7 +161,14 @@ function handleSubmit(e: Event) {
 <template>
   <TooltipProvider>
     <div class="shrink-0 border-t border-border p-2.5">
-      <form @submit="handleSubmit" @paste.stop="handlePaste">
+      <form class="relative" @submit="handleSubmit" @paste.stop="handlePaste">
+        <!-- Slash-command autocomplete for ACP agents that advertise commands -->
+        <AcpCommandAutocomplete
+          v-if="acpTransport && acpTransport.acpState.value.commands.length > 0"
+          :transport="acpTransport"
+          :input="input"
+          @select="handleACPCommand"
+        />
         <InputGroup :disabled="isStreaming">
           <template v-if="images.length" #attachment>
             <div class="flex flex-wrap gap-1.5">
@@ -199,9 +223,16 @@ function handleSubmit(e: Event) {
           </template>
 
           <template #model>
-            <div class="flex min-w-0 items-center">
+            <div class="flex min-w-0 items-center gap-1">
               <template v-if="isACPProvider">
-                <div class="flex min-w-0 items-center gap-1 px-1.5 text-[10px] text-muted">
+                <!-- ACP session controls: Plan/Build toggle + model dropdown.
+                     Shown once the agent advertises its modes/models; until
+                     then fall back to the agent-name badge. -->
+                <template v-if="acpTransport && acpStateReady">
+                  <AcpModeToggle :transport="acpTransport" />
+                  <AcpModelSelect :transport="acpTransport" />
+                </template>
+                <div v-else class="flex min-w-0 items-center gap-1 px-1.5 text-[10px] text-muted">
                   <icon-lucide-bot class="size-3 shrink-0" />
                   <span class="truncate">{{ acpAgentName }}</span>
                 </div>
