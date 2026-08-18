@@ -4,6 +4,8 @@ Open-source design editor. Opens `.fig` and `.pen` design files, includes built-
 
 > **Status:** Active development. Usable today, with some rough edges as features evolve.
 
+> **Fork notice:** This is the `chrisgliddon/open-pencil` fork of [`open-pencil/open-pencil`](https://github.com/open-pencil/open-pencil). Custom work lives on the `dev` branch and flows through a `dev` → `staging` → `production` pipeline. There is no `master` branch on this fork; the local `master` tracks `upstream/master` solely as a reference for pulling in upstream improvements. See [AGENTS.md](./AGENTS.md) for the full branch model and contribution workflow.
+
 **[Try it online →](https://app.openpencil.dev/demo)** · [Download](https://github.com/open-pencil/open-pencil/releases/latest) · [Documentation](https://openpencil.dev) · [Roadmap](https://openpencil.dev/development/roadmap) · [llms.txt](https://openpencil.dev/llms.txt)
 
 ![OpenPencil](packages/docs/public/screenshot.png)
