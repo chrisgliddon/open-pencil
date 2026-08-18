@@ -73,7 +73,7 @@ export const ROOM_ID_CHARS = 'abcdefghijklmnopqrstuvwxyz0123456789'
 
 export const WEB_APP_ORIGIN = 'https://app.openpencil.dev'
 
-export function getShareUrl(roomId: string): string {
+export function getShareURL(roomId: string): string {
   const base = IS_TAURI || !IS_BROWSER ? WEB_APP_ORIGIN : window.location.origin
   return `${base}/share/${roomId}`
 }
@@ -98,6 +98,10 @@ export {
   ZOOM_SCALE_MIN,
   ZOOM_SCALE_MAX
 } from '@open-pencil/core/constants'
+
+export const ASSET_GRID_THUMBNAIL_SIZE = 96
+export const ASSET_LIST_THUMBNAIL_SIZE = 40
+export const ASSET_THUMBNAIL_RENDER_SCALE = 2
 
 export const HANDLE_SIZE = 6
 

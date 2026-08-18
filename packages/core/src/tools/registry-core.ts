@@ -12,7 +12,7 @@ import {
   setTextProperties,
   updateNode
 } from './modify'
-import { findNodes, getJsx, getNode, getSelection, listPages, switchPage } from './read'
+import { findNodes, getJSX, getNode, getSelection, listPages, switchPage } from './read'
 import type { ToolDef } from './schema'
 import { stockPhoto } from './stock-photo'
 import { batchUpdate, deleteNode, nodeResize, reparentNode } from './structure'
@@ -28,7 +28,7 @@ export const CORE_TOOLS: ToolDef[] = [
   getSelection,
   getNode,
   findNodes,
-  getJsx,
+  getJSX,
   listPages,
   // Create & organize
   render,

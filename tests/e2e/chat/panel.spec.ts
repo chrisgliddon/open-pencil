@@ -13,6 +13,12 @@ test.describe.configure({ mode: 'serial' })
 test.beforeAll(async ({ browser }) => {
   page = await browser.newPage()
   await page.goto('/')
+  await page.evaluate(async () => {
+    const themeModulePath = '/src/app/shell/theme.ts'
+    const themeModule = await import(themeModulePath)
+    themeModule.useAppTheme().setTheme('dark')
+  })
+  await page.waitForFunction(() => document.documentElement.dataset.theme === 'dark')
   canvas = new CanvasHelper(page)
   await canvas.waitForInit()
 
@@ -43,6 +49,7 @@ async function injectMockTransport(page: Page) {
         const msgId = `mock-msg-${++msgCounter}`
         const lowerText = text.toLowerCase()
         const wantsTool = lowerText.includes('frame') || lowerText.includes('rectangle')
+        const wantsCode = lowerText.includes('code block')
 
         if (lowerText.includes('missing agent')) {
           throw new Error(
@@ -89,9 +96,10 @@ async function injectMockTransport(page: Page) {
               })
             }
 
-            const words = wantsTool
-              ? ['Created', 'a', 'frame', 'called', '"Card".']
-              : `I'll help you with: "${text}". Here's a mock response.`.split(' ')
+            let words: string[]
+            if (wantsTool) words = ['Created', 'a', 'frame', 'called', '"Card".']
+            else if (wantsCode) words = ['```typescript\nconst greeting = "Hello"\n```']
+            else words = `I'll help you with: "${text}". Here's a mock response.`.split(' ')
 
             controller.enqueue({ type: 'text-start', id: 'text-1' })
             for (const word of words) {
@@ -119,11 +127,11 @@ function designTab() {
 }
 
 function chatInput() {
-  return page.locator('input[placeholder="Describe a change…"]')
+  return page.getByRole('textbox', { name: 'Describe a change' })
 }
 
 function apiKeyInput() {
-  return page.getByTestId('api-key-input')
+  return page.getByTestId('provider-settings-api-key')
 }
 
 test('⌘J switches to AI tab', async () => {
@@ -137,31 +145,102 @@ test('⌘J switches back to Design tab', async () => {
   await expect(designTab()).toHaveAttribute('data-state', 'active')
 })
 
-test('clicking AI tab shows provider setup when no key set', async () => {
+test('clicking AI tab directs provider setup to unified settings', async () => {
   await chatTab().click()
-  await expect(apiKeyInput()).toBeVisible()
   await expect(page.getByText('Connect an AI provider to start chatting.')).toBeVisible()
-  await expect(page.getByTestId('provider-custom-model')).toBeHidden()
+  await expect(page.getByTestId('provider-setup-open-settings')).toBeVisible()
+  await expect(apiKeyInput()).toBeHidden()
 })
 
-test('saving API key shows chat interface', async () => {
+test('saving API key in unified settings shows chat interface', async () => {
   const key = USE_REAL_LLM ? OPENROUTER_KEY : 'sk-or-test-key-12345'
+  await page.getByTestId('provider-setup-open-settings').click()
+  await expect(page.getByTestId('app-settings-dialog')).toBeVisible()
+  await expect(page.getByTestId('settings-remember-credentials')).toHaveAttribute(
+    'data-state',
+    'checked'
+  )
+  await expect(page.getByTestId('settings-credential-backend')).toContainText(
+    'encrypted browser storage'
+  )
+  await page.locator('[data-model-id]').first().click()
+  await page.getByTestId('settings-model-provider').click()
+  await page.getByRole('option', { name: 'OpenRouter' }).click()
+  await page.getByLabel('Name').fill('Claude Sonnet')
   await apiKeyInput().fill(key)
-  await page.getByTestId('api-key-save').click()
+  await page.getByRole('button', { name: 'Save model' }).click()
+  await page.getByTestId('app-settings-done').click()
 
   await expect(chatInput()).toBeVisible()
   await expect(page.getByText('Describe what you want to create or change.')).toBeVisible()
 })
 
 test('empty input has disabled send button', async () => {
-  const sendButton = page.locator('button[type="submit"]')
+  const sendButton = page.getByTestId('chat-send-button')
   await expect(sendButton).toBeDisabled()
 })
 
 test('typing enables send button', async () => {
   await chatInput().fill('Make a red rectangle')
-  const sendButton = page.locator('button[type="submit"]')
+  const sendButton = page.getByTestId('chat-send-button')
   await expect(sendButton).toBeEnabled()
+})
+
+test('multiple images appear inside the composer and can be removed', async () => {
+  await chatInput().fill('')
+  const chooser = page.waitForEvent('filechooser')
+  await page.getByRole('button', { name: 'Attach images' }).click()
+  await (
+    await chooser
+  ).setFiles([
+    'tests/fixtures/vectorize/pilot_avatar.png',
+    'tests/fixtures/vectorize/python_logo.png'
+  ])
+
+  await expect(page.getByText('pilot_avatar.png', { exact: true })).toBeVisible()
+  await expect(page.getByText('python_logo.png', { exact: true })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Remove image pilot_avatar.png' })).toBeVisible()
+
+  await page.getByRole('button', { name: 'Remove image pilot_avatar.png' }).click()
+  await expect(page.getByText('pilot_avatar.png', { exact: true })).toBeHidden()
+  await expect(page.getByText('python_logo.png', { exact: true })).toBeVisible()
+  await page.getByRole('button', { name: 'Remove image python_logo.png' }).click()
+})
+
+test('sending images shows the complete user message immediately', async () => {
+  await chatInput().fill('Use these images for the new layout')
+  const chooser = page.waitForEvent('filechooser')
+  await page.getByRole('button', { name: 'Attach images' }).click()
+  await (
+    await chooser
+  ).setFiles([
+    'tests/fixtures/vectorize/pilot_avatar.png',
+    'tests/fixtures/vectorize/python_logo.png'
+  ])
+
+  await page.getByTestId('chat-send-button').click()
+
+  const userMessage = page.getByTestId('chat-message-user').last()
+  await expect(userMessage).toContainText('Use these images for the new layout', { timeout: 500 })
+  await expect(
+    userMessage.getByRole('button', { name: 'View image pilot_avatar.png' })
+  ).toBeVisible({
+    timeout: 500
+  })
+  await expect(userMessage.getByRole('button', { name: 'View image python_logo.png' })).toBeVisible(
+    {
+      timeout: 500
+    }
+  )
+})
+
+test('Shift+Enter inserts a line break without submitting', async () => {
+  await chatInput().fill('First line')
+  await chatInput().press('Shift+Enter')
+  await chatInput().type('Second line')
+
+  await expect(chatInput()).toHaveValue('First line\nSecond line')
+  await expect(page.getByText('First line', { exact: true })).toBeHidden()
 })
 
 test('Enter submits message and clears input', async () => {
@@ -180,6 +259,38 @@ test('assistant responds', async () => {
   } else {
     await expect(page.getByText('mock response', { exact: false })).toBeVisible({ timeout: 5000 })
   }
+})
+
+test('completed Markdown responses release streaming parser history', async () => {
+  await chatInput().fill('Show a code block')
+  await chatInput().press('Enter')
+
+  const markdown = page.locator('.chat-markdown').last()
+  await expect(markdown).toBeVisible()
+  await expect(markdown).toHaveAttribute('data-chat-markdown-mode', 'static')
+  await expect(markdown.locator('.shiki').first()).toBeVisible()
+})
+
+test('assistant code blocks follow the active theme with readable contrast', async () => {
+  await chatInput().fill('Show a code block')
+  await chatInput().press('Enter')
+
+  const code = page.getByTestId('chat-message-assistant').last().locator('.shiki').first()
+  await expect(code).toBeVisible()
+  await expect(page.locator('.chat-markdown').last()).toHaveClass(/dark/)
+  await expect(code).toHaveCSS('background-color', 'rgb(30, 30, 30)')
+  await expect(code.locator('span').filter({ hasText: 'const' }).first()).not.toHaveCSS(
+    'color',
+    'rgb(240, 240, 240)'
+  )
+  await page.evaluate(async () => {
+    const themeModulePath = '/src/app/shell/theme.ts'
+    const themeModule = await import(themeModulePath)
+    themeModule.useAppTheme().setTheme('light')
+  })
+  await page.waitForFunction(() => document.documentElement.dataset.theme === 'light')
+  await expect(page.locator('.chat-markdown').last()).toHaveClass(/light/)
+  await expect(code).toHaveCSS('background-color', 'rgb(255, 255, 255)')
 })
 
 test('model selector is visible and clickable', async () => {
@@ -227,39 +338,54 @@ test('OpenRouter accepts a custom model ID from provider settings', async () => 
 
   await page.keyboard.press('Escape')
   await page.getByTestId('provider-settings-trigger').click()
+  await page.locator('[data-model-id]').first().click()
+  await page.getByLabel('Model ID').click()
+  await page.getByRole('option', { name: 'Custom model…' }).click()
   const customModelInput = page.getByTestId('provider-settings-custom-model')
   await expect(customModelInput).toBeVisible()
   await customModelInput.fill(customModel)
-  await page.getByTestId('provider-settings-done').click()
+  await page.getByRole('button', { name: 'Save model' }).click()
+  await page.getByTestId('app-settings-done').click()
 
   await expect(page.getByTestId('chat-custom-model-label')).toContainText(customModel)
   await expect(page.getByTestId('chat-model-selector')).toBeHidden()
 
   await page.getByTestId('provider-settings-trigger').click()
-  await page.getByTestId('provider-settings-custom-model').fill('')
-  await page.getByTestId('provider-settings-done').click()
+  await page.locator('[data-model-id]').first().click()
+  const savedCustomModelInput = page.getByTestId('provider-settings-custom-model')
+  await savedCustomModelInput.fill('')
+  await page.getByRole('combobox', { name: 'Model ID' }).click()
+  await page.getByRole('option', { name: /Claude Sonnet 4\.6/ }).click()
+  await page.getByRole('button', { name: 'Save model' }).click()
+  await page.getByTestId('app-settings-done').click()
 
   await expect(page.getByTestId('chat-model-selector')).toBeVisible()
 })
 
-test('transport errors show an actionable toast', async () => {
+test('transport errors show a safe localized toast', async () => {
   await chatInput().fill('Trigger missing agent error')
   await chatInput().press('Enter')
 
   await expect(
     page.getByTestId('toast-item').filter({
-      hasText: 'Install it with: npm i -g @agentclientprotocol/claude-agent-acp'
+      hasText: 'The model request failed. Check the provider settings and try again.'
     })
   ).toBeVisible({ timeout: 5000 })
 })
 
 test('"Get API key" link opens external URL via window.open', async () => {
-  await page.evaluate("localStorage.removeItem('open-pencil:ai-key:openrouter')")
-  await page.reload()
-  await canvas.waitForInit()
-  await chatTab().click()
+  await page.getByTestId('provider-settings-trigger').click()
+  await page.locator('[data-model-id]').first().click()
+  await page.getByTestId('provider-settings-clear-key').click()
+  await page.getByRole('button', { name: 'Back' }).click()
+  await page.getByTestId('app-settings-done').click()
+  await expect(page.getByTestId('provider-setup-open-settings')).toBeVisible()
+  await page.getByTestId('provider-setup-open-settings').click()
+  await page.locator('[data-model-id]').first().click()
+  await page.getByTestId('settings-model-provider').click()
+  await page.getByRole('option', { name: 'OpenRouter' }).click()
 
-  const link = page.getByTestId('api-key-get-link')
+  const link = page.getByRole('button', { name: 'Get API key →' })
   await expect(link).toBeVisible()
 
   // Intercept window.open to verify it's called with the right URL

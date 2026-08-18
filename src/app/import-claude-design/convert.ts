@@ -8,7 +8,7 @@ import { getActiveEditorStore } from '@/app/editor/active-store'
 
 import { registerImportAssets, registerImportFonts } from './assets'
 import CONVERSION_RULES from './prompt.md?raw'
-import type { CssFile, ProjectManifest, ScreenFile } from './read-project'
+import type { CSSFile, ProjectManifest, ScreenFile } from './read-project'
 
 const MAX_SCREENS_PER_PASS = 8
 const MAX_CSS_CHARS = 32_000
@@ -33,7 +33,7 @@ function fileStem(path: string): string {
 // selected screen, then the rest — so the cap trims the least relevant files.
 function cssBlock(manifest: ProjectManifest, screens: ScreenFile[]): string {
   const screenNames = screens.map((screen) => screen.componentName.toLowerCase())
-  const relevance = (file: CssFile): number => {
+  const relevance = (file: CSSFile): number => {
     const stem = fileStem(file.relativePath)
     if (stem === 'colors_and_type') return 0
     return screenNames.some((name) => name.includes(stem) || stem.includes(name)) ? 1 : 2

@@ -6,7 +6,7 @@ import type {
   SceneNode,
   Stroke
 } from '@open-pencil/scene-graph'
-import type { Color, JsonObject } from '@open-pencil/scene-graph/primitives'
+import type { Color, JSONObject } from '@open-pencil/scene-graph/primitives'
 
 import { colorToFill, parseColor } from '#core/color'
 import { TRANSPARENT } from '#core/constants'
@@ -92,7 +92,7 @@ function normalizeStyleProps(props: Record<string, unknown>): Record<string, unk
   const style = props.style
   if (style === null || typeof style !== 'object' || Array.isArray(style)) return props
 
-  const source = style as JsonObject
+  const source = style as JSONObject
   const normalized = { ...props }
   const copyIfUnset = (from: string, to: string, convert?: (value: unknown) => unknown): void => {
     if (normalized[to] !== undefined || source[from] === undefined) return
@@ -246,6 +246,14 @@ function applyVisualOverrides(props: Record<string, unknown>, o: Partial<SceneNo
     o.blendMode = (props.blendMode as string).toUpperCase() as SceneNode['blendMode']
   }
   if (props.overflow === 'hidden') o.clipsContent = true
+  if (props.mask) {
+    o.isMask = true
+    const maskTypeMap: Record<string, SceneNode['maskType']> = {
+      luminance: 'LUMINANCE',
+      vector: 'VECTOR'
+    }
+    o.maskType = maskTypeMap[props.mask as string] ?? 'ALPHA'
+  }
 }
 
 function applyTransformOverrides(props: Record<string, unknown>, o: Partial<SceneNode>): void {

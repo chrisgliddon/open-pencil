@@ -2,6 +2,7 @@ import type { SceneNode, SceneGraph, Fill, Stroke } from '@open-pencil/scene-gra
 import type { Color, Rect, Vector } from '@open-pencil/scene-graph/primitives'
 import type { SnapGuide } from '@open-pencil/scene-graph/snap'
 
+import { decodeBase64 } from '#core/bytes'
 import type { ResolvedRenderColor } from '#core/color/management'
 /* eslint-disable max-lines -- SkiaRenderer facade owns CanvasKit state and delegates domain drawing */
 import {
@@ -29,7 +30,7 @@ import { initializeRendererPaints } from './renderer/paints'
 import * as RenderPipeline from './renderer/pipeline'
 import * as RendererState from './renderer/state'
 import * as RenderText from './text'
-export type { RenderOverlays, RulerTheme } from './renderer/types'
+export type { MeasurementMode, RenderOverlays, RulerTheme } from './renderer/types'
 import type {
   Image as CKImage,
   Path,
@@ -97,6 +98,8 @@ export class SkiaRenderer {
   vectorStrokeOutlineCache = new Map<string, Path[]>()
   fillGeometryCache = new Map<string, Path[]>()
   strokeGeometryCache = new Map<string, Path[]>()
+  /** Path-text glyph silhouettes (stroke-and-union, font units) keyed by blob hash + relative weight. */
+  glyphSilhouetteCache = new Map<string, Path>()
   scenePicture: SkPicture | null = null
   scenePictureVersion = -1
   scenePictureFontGeneration = -1
@@ -121,6 +124,7 @@ export class SkiaRenderer {
   } | null = null
   sceneBackingPreviewUntil = 0
   sceneBackingNeedsCrispRender = false
+  sceneBackingAllocationFailed = false
   sceneBackingBuild: {
     surface: Surface
     graph: SceneGraph
@@ -197,6 +201,12 @@ export class SkiaRenderer {
     graph: SceneGraph,
     hoveredNodeId?: string | null
   ) => void
+  declare drawMeasurements: (
+    canvas: Canvas,
+    graph: SceneGraph,
+    selectedIds: Set<string>,
+    targetId?: string | null
+  ) => void
   declare drawEnteredContainer: (
     canvas: Canvas,
     graph: SceneGraph,
@@ -267,7 +277,8 @@ export class SkiaRenderer {
     nodeId: string,
     overlays: RenderOverlays,
     parentAbsX?: number,
-    parentAbsY?: number
+    parentAbsY?: number,
+    hasTransformedAncestor?: boolean
   ) => void
   declare renderSection: (canvas: Canvas, node: SceneNode, graph: SceneGraph) => void
   declare renderComponentSet: (canvas: Canvas, node: SceneNode, graph: SceneGraph) => void
@@ -450,6 +461,7 @@ export class SkiaRenderer {
   replaceSurface(surface: Surface): void {
     this.surface.delete()
     this.surface = surface
+    this.sceneBackingAllocationFailed = false
     this.invalidateScenePicture()
   }
 
@@ -677,16 +689,13 @@ export class SkiaRenderer {
       imageData.data.set(pixels)
       ctx.putImageData(imageData, 0, 0)
       const mime = format === 'JPG' ? 'image/jpeg' : 'image/webp'
-      const dataUrl = canvas.toDataURL(mime, quality / 100)
+      const dataURL = canvas.toDataURL(mime, quality / 100)
       // Browsers silently return a PNG data URL when the requested encoder is
       // unsupported; reject that so we never write PNG bytes under a .jpg/.webp file.
-      if (!dataUrl.startsWith(`data:${mime}`)) return null
-      const base64 = dataUrl.split(',')[1]
+      if (!dataURL.startsWith(`data:${mime}`)) return null
+      const base64 = dataURL.split(',')[1]
       if (!base64) return null
-      const binary = atob(base64)
-      const bytes = new Uint8Array(binary.length)
-      for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i)
-      return bytes
+      return decodeBase64(base64)
     } catch (err) {
       console.warn('Raster encode fallback failed:', err)
       return null

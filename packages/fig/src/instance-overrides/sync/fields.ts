@@ -1,3 +1,5 @@
+import { omit } from 'es-toolkit/object'
+
 import type { SceneGraph, SceneNode } from '@open-pencil/scene-graph'
 import {
   copyEffects,
@@ -27,6 +29,7 @@ type SyncFn = (
 ) => void
 
 type DirectSyncKey = 'text' | 'visible' | 'opacity' | 'locked' | 'layoutGrow' | 'textAutoResize'
+type ScalarBindingKey = 'opacity'
 type CopiedSyncKey = 'fills' | 'strokes' | 'effects' | 'styleRuns'
 
 function assignDirectUpdate(
@@ -94,10 +97,27 @@ function assignCopiedUpdate(
   }
 }
 
+function syncPaintBindings(
+  key: 'fills' | 'strokes',
+  source: SceneNode,
+  target: SceneNode,
+  updates: Partial<SceneNode>
+): void {
+  const prefix = `${key}/`
+  const currentBindings = updates.boundVariables ?? target.boundVariables
+  const paintFields = Object.keys(currentBindings).filter((field) => field.startsWith(prefix))
+  const bindings: Record<string, string> = omit(currentBindings, paintFields)
+  for (const [field, variableId] of Object.entries(source.boundVariables)) {
+    if (field.startsWith(prefix)) bindings[field] = variableId
+  }
+  updates.boundVariables = bindings
+}
+
 function copiedSync(key: CopiedSyncKey, field: ProtectedField): SyncFn {
   return (source, target, updates, protections) => {
     if (!hasSameCopySource(source[key], target[key]) && canSync(protections, target.id, field)) {
       assignCopiedUpdate(key, source, updates)
+      if (key === 'fills' || key === 'strokes') syncPaintBindings(key, source, target, updates)
     }
   }
 }
@@ -109,6 +129,20 @@ const COPIED_SYNCERS: SyncFn[] = [
   copiedSync('styleRuns', 'styleRuns')
 ]
 
+function syncScalarBinding(
+  key: ScalarBindingKey,
+  source: SceneNode,
+  target: SceneNode,
+  updates: Partial<SceneNode>
+): void {
+  const sourceVariableId = source.boundVariables[key]
+  const targetVariableId = target.boundVariables[key]
+  if (targetVariableId === sourceVariableId) return
+  const bindings = { ...(updates.boundVariables ?? target.boundVariables) }
+  if (sourceVariableId) bindings[key] = sourceVariableId
+  updates.boundVariables = sourceVariableId ? bindings : omit(bindings, [key])
+}
+
 function syncFields(
   source: SceneNode,
   target: SceneNode,
@@ -117,6 +151,7 @@ function syncFields(
 ): void {
   for (const sync of DIRECT_SYNCERS) sync(source, target, updates, protections)
   for (const sync of COPIED_SYNCERS) sync(source, target, updates, protections)
+  syncScalarBinding('opacity', source, target, updates)
 }
 
 export function syncNodeProps(

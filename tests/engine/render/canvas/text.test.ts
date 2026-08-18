@@ -7,6 +7,7 @@ import {
   SkiaRenderer as SkiaRendererClass
 } from '@open-pencil/core'
 import type { SceneNode } from '@open-pencil/scene-graph'
+import { createDefaultSourceMetadata } from '@open-pencil/scene-graph/node-defaults'
 
 import { initCanvasKit } from '#cli/headless'
 import type { SkiaRenderer } from '#core/canvas/renderer'
@@ -95,6 +96,7 @@ function textNode(overrides: Partial<SceneNode> = {}): SceneNode {
     textDecoration: 'NONE',
     textDirection: 'AUTO',
     styleRuns: [],
+    source: createDefaultSourceMetadata(),
     ...overrides
   } as SceneNode
 }
@@ -129,7 +131,9 @@ describe('renderText', () => {
 
     renderText(r, canvas as never, textNode())
 
-    expect(r.buildParagraph).toHaveBeenCalledTimes(1)
+    expect(r.buildParagraph).toHaveBeenCalledWith(expect.anything(), expect.anything(), {
+      halfLeading: true
+    })
     expect(canvas.drawParagraph).toHaveBeenCalledTimes(1)
     expect(canvas.drawText).not.toHaveBeenCalled()
     expect(r._paragraph.delete).toHaveBeenCalledTimes(1)
@@ -158,7 +162,9 @@ describe('renderText', () => {
       gradientTransform: { m00: 1, m01: 0, m02: 0, m10: 0, m11: 1, m12: 0 }
     })
 
-    expect(r.buildParagraph).toHaveBeenCalledTimes(1)
+    expect(r.buildParagraph).toHaveBeenCalledWith(expect.anything(), expect.anything(), {
+      halfLeading: true
+    })
     expect(canvas.saveLayer).toHaveBeenCalledTimes(2)
     expect(canvas.drawParagraph).toHaveBeenCalledTimes(1)
     expect(canvas.drawRect).toHaveBeenCalledTimes(1)

@@ -4,7 +4,7 @@ Open-source design editor. Opens `.fig` and `.pen` design files, includes built-
 
 > **Status:** Active development. Usable today, with some rough edges as features evolve.
 
-**[Try it online →](https://app.openpencil.dev/demo)** · [Download](https://github.com/open-pencil/open-pencil/releases/latest) · [Documentation](https://openpencil.dev) · [llms.txt](https://openpencil.dev/llms.txt)
+**[Try it online →](https://app.openpencil.dev/demo)** · [Download](https://github.com/open-pencil/open-pencil/releases/latest) · [Documentation](https://openpencil.dev) · [Roadmap](https://openpencil.dev/development/roadmap) · [llms.txt](https://openpencil.dev/llms.txt)
 
 ![OpenPencil](packages/docs/public/screenshot.png)
 
@@ -25,6 +25,7 @@ Or download from the [releases page](https://github.com/open-pencil/open-pencil/
 - **Fully programmable** — headless CLI, XPath queries, Figma Plugin API via `eval`, MCP server for AI agents, and desktop agent integrations for Claude Code, Codex, and Gemini CLI
 - **Lint, convert, and extract tokens** — inspect documents, lint naming/layout/accessibility, convert between supported formats, analyze colors/typography/spacing/clusters, and extract design tokens
 - **Components and variants** — create reusable components, group variants into component sets, insert local assets as instances, and switch variants from the inspector
+- **Image vectorization** — convert image layers into editable vector layers with Recraft or fal.ai
 - **Design-to-code export** — export selections as JSX/Tailwind, generate token outputs, and map designs into component-oriented code workflows
 - **Vue SDK for custom editors** — headless components and composables for embedding OpenPencil into other apps or building workflow-specific editing surfaces. [Read the SDK docs →](https://openpencil.dev/programmable/sdk/)
 - **Real-time collaboration** — P2P via WebRTC, no server, no account. Cursors, presence, follow mode
@@ -163,6 +164,8 @@ All commands support `--json` for machine-readable output.
 
 Press <kbd>⌘</kbd><kbd>J</kbd> to open the AI assistant. It has 100+ tools that can create shapes, set fills and strokes, manage auto-layout, work with components and variables, run boolean operations, analyze design tokens, and export assets. Bring your own API key for OpenRouter, Anthropic, OpenAI, Google AI, Z.ai, MiniMax, or compatible endpoints. No backend, no account.
 
+Not every provider works in the browser, and not every model streams tool calls correctly. See [BYOK provider & model compatibility](packages/docs/programmable/byok-provider-compatibility.md) for measured results — contributions welcome.
+
 ### Coding agents (desktop)
 
 Use Claude Code, Codex, Gemini CLI, or OpenCode directly in the chat panel. The agent connects to the editor's MCP server and uses all 100+ design tools. Requires the desktop app and the agent CLI installed locally.
@@ -202,8 +205,10 @@ For other MCP clients:
 **HTTP** (scripts, CI):
 
 ```sh
-openpencil-mcp-http   # http://localhost:3100/mcp
+openpencil-mcp-http   # Unix socket on macOS/Linux + http://127.0.0.1:7600/mcp
 ```
+
+Local clients discover the private Unix socket automatically and fall back to localhost TCP. Set `PORT=0` to disable TCP on macOS/Linux.
 
 **File access:** Set `OPENPENCIL_MCP_ROOT` to scope file operations (`open_file`, `new_document`, export `path` param) to a directory. Defaults to the current working directory.
 
@@ -246,14 +251,18 @@ bun run dev        # Dev server at localhost:1420
 bun run tauri dev  # Desktop app (requires Rust)
 ```
 
+Alternatively, open the repository in any [Dev Container](https://containers.dev/)-compatible tool. The container pins Bun, installs the workspace dependencies, and forwards the web editor on port 1420. Start it with `bun run dev` after the container is ready.
+
+The Dev Container supports the web editor, packages, CLI, and automated checks. Native Tauri development still requires the host setup described below because desktop windows and platform WebView dependencies are not provided in the container.
+
 ### Quality gates
 
-| Command | Description |
-|---------|-------------|
-| `bun run check` | Lint + typecheck |
-| `bun run test` | E2E visual regression |
-| `bun run test:unit` | Unit tests |
-| `bun run format` | Code formatting |
+| Command             | Description           |
+| ------------------- | --------------------- |
+| `bun run check`     | Lint + typecheck      |
+| `bun run test`      | E2E visual regression |
+| `bun run test:unit` | Unit tests            |
+| `bun run format`    | Code formatting       |
 
 ### Project structure
 
@@ -276,15 +285,15 @@ tests/            E2E, visual, engine, and integration tests
 
 ### Tech stack
 
-| Layer | Tech |
-|-------|------|
-| Rendering | Skia (CanvasKit WASM) |
-| Layout | Yoga WASM (flex + grid via [fork](https://github.com/open-pencil/yoga/tree/grid)) |
-| UI | Vue 3, Reka UI, Tailwind CSS 4 |
-| File format | Kiwi binary + Zstd + ZIP |
-| Collaboration | Trystero (WebRTC P2P) + Yjs (CRDT) |
-| Desktop | Tauri v2 |
-| AI/MCP | Multi-provider (Anthropic, OpenAI, Google AI, OpenRouter), MCP SDK, Hono |
+| Layer         | Tech                                                                              |
+| ------------- | --------------------------------------------------------------------------------- |
+| Rendering     | Skia (CanvasKit WASM)                                                             |
+| Layout        | Yoga WASM (flex + grid via [fork](https://github.com/open-pencil/yoga/tree/grid)) |
+| UI            | Vue 3, Reka UI, Tailwind CSS 4                                                    |
+| File format   | Kiwi binary + Zstd + ZIP                                                          |
+| Collaboration | Trystero (WebRTC P2P) + Yjs (CRDT)                                                |
+| Desktop       | Tauri v2                                                                          |
+| AI/MCP        | Multi-provider (Anthropic, OpenAI, Google AI, OpenRouter), MCP SDK, Hono          |
 
 ### Desktop builds
 

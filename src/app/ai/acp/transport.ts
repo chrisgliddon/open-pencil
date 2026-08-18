@@ -14,12 +14,13 @@ import type { ShallowRef } from 'vue'
 
 import type { ACPAgentDef } from '@open-pencil/core/constants'
 
-import { rememberAcpModels } from '@/app/ai/chat/storage'
+import { rememberACPModels } from '@/app/ai/chat/storage'
 import SYSTEM_PROMPT from '@/app/ai/chat/system-prompt.md?raw'
+import { buildACPMCPServers } from '@/app/integrations/mcp'
 
 import { mapUpdate } from './map-update'
 import { defaultModelForMode } from './model-defaults'
-import { spawnAcpProcess } from './process'
+import { spawnACPProcess } from './process'
 import {
   applySessionUpdate,
   configOptionIdForCategory,
@@ -29,7 +30,7 @@ import {
   type ACPSessionState
 } from './session-state'
 
-type TauriChild = Awaited<ReturnType<typeof spawnAcpProcess>>['child']
+type TauriChild = Awaited<ReturnType<typeof spawnACPProcess>>['child']
 
 interface ACPDebugEntry {
   ts: number
@@ -58,18 +59,18 @@ function pruneOldEntries() {
   }
 }
 
-export function getAcpDebugText(): string {
+export function getACPDebugText(): string {
   pruneOldEntries()
   return acpDebugLog
     .map((e) => `[${new Date(e.ts).toISOString()}] ${e.type}\n${JSON.stringify(e.data, null, 2)}`)
     .join('\n\n---\n\n')
 }
 
-export function clearAcpDebugLog() {
+export function clearACPDebugLog() {
   acpDebugLog.length = 0
 }
 
-export function hasAcpDebugEntries(): boolean {
+export function hasACPDebugEntries(): boolean {
   pruneOldEntries()
   return acpDebugLog.length > 0
 }
@@ -285,7 +286,7 @@ export class ACPChatTransport implements ChatTransport<UIMessage> {
             const next = { ...this.sessionState.value }
             if (applySessionUpdate(next, params.update)) {
               this.sessionState.value = next
-              rememberAcpModels(this.agentDef.id, next.models)
+              rememberACPModels(this.agentDef.id, next.models)
               // A mode change (agent- or user-initiated) re-applies the
               // configured default model for the new mode's slot.
               if (params.update.sessionUpdate === 'current_mode_update') {
@@ -339,9 +340,9 @@ export class ACPChatTransport implements ChatTransport<UIMessage> {
   }
 
   private async spawnAgent(): Promise<ACPSession> {
-    let process: Awaited<ReturnType<typeof spawnAcpProcess>>
+    let process: Awaited<ReturnType<typeof spawnACPProcess>>
     try {
-      process = await spawnAcpProcess({
+      process = await spawnACPProcess({
         command: this.agentDef.command,
         args: this.agentDef.args,
         logId: this.agentDef.id,
@@ -375,30 +376,32 @@ export class ACPChatTransport implements ChatTransport<UIMessage> {
 
     const connection = new ClientSideConnection((_agent: Agent) => clientImpl, stream)
     const { getAutomationAuthToken } = await import('@/app/automation/mcp/spawn')
-    const automationAuthToken = await getAutomationAuthToken()
+    let automationAuthToken: string | null
+    try {
+      automationAuthToken = await getAutomationAuthToken()
+    } catch (e) {
+      await child.kill().catch(() => undefined)
+      throw new Error(formatConnectionError(e, this.agentDef))
+    }
 
-    await connection.initialize({
-      protocolVersion: PROTOCOL_VERSION,
-      clientCapabilities: {}
-    })
+    try {
+      await connection.initialize({
+        protocolVersion: PROTOCOL_VERSION,
+        clientCapabilities: {}
+      })
+    } catch (e) {
+      await child.kill().catch(() => undefined)
+      throw new Error(formatConnectionError(e, this.agentDef))
+    }
 
     let sessionResult: NewSessionResponse
     try {
       sessionResult = await connection.newSession({
         cwd: this.cwd,
-        mcpServers: [
-          {
-            type: 'http' as const,
-            name: 'open-pencil',
-            url: 'http://127.0.0.1:7600/mcp',
-            headers: automationAuthToken
-              ? [{ name: 'Authorization', value: `Bearer ${automationAuthToken}` }]
-              : []
-          }
-        ]
+        mcpServers: await buildACPMCPServers({ authorizationToken: automationAuthToken })
       })
     } catch (e) {
-      await child.kill()
+      await child.kill().catch(() => undefined)
       throw new Error(formatConnectionError(e, this.agentDef))
     }
 
@@ -407,7 +410,7 @@ export class ACPChatTransport implements ChatTransport<UIMessage> {
     // the Plan/Build toggle and model dropdown from this.
     const configOptions = sessionResult.configOptions ?? null
     this.sessionState.value = sessionStateFromConfig(configOptions, sessionResult.models ?? null)
-    rememberAcpModels(this.agentDef.id, this.sessionState.value.models)
+    rememberACPModels(this.agentDef.id, this.sessionState.value.models)
 
     const session: ACPSession = {
       connection,

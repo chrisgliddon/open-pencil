@@ -2,11 +2,15 @@ import { describe, expect, test } from 'bun:test'
 
 import { createEditor } from '@open-pencil/core/editor'
 import type { ConstraintType } from '@open-pencil/scene-graph'
+import {
+  collectResizeDescendants,
+  constrainedChildRect,
+  type ResizeSnapshot
+} from '@open-pencil/scene-graph/resize'
 import { constraintPins, isConstraintEligible, toggleConstraintPin } from '@open-pencil/vue'
 
 import { applyResize } from '#vue/shared/input/resize'
-import { constrainedChildRect } from '#vue/shared/input/resize/constraints'
-import type { DragResize, OrigChildState } from '#vue/shared/input/types'
+import type { DragResize } from '#vue/shared/input/types'
 
 import { createRect, firstPageId, makeSceneGraph } from '#tests/helpers/scene'
 
@@ -15,14 +19,19 @@ function original(node: {
   y: number
   width: number
   height: number
-  vectorNetwork: OrigChildState['vectorNetwork']
-}): OrigChildState {
+  vectorNetwork: ResizeSnapshot['vectorNetwork']
+}): ResizeSnapshot {
   return {
     x: node.x,
     y: node.y,
     width: node.width,
     height: node.height,
-    vectorNetwork: node.vectorNetwork
+    vectorNetwork: node.vectorNetwork,
+    fillGeometry: [],
+    strokeGeometry: [],
+    derivedTextGlyphs: null,
+    strokes: [],
+    textPathBox: null
   }
 }
 
@@ -54,12 +63,17 @@ describe('constraint control model', () => {
 })
 
 describe('constraint resize geometry', () => {
-  const child: OrigChildState = {
+  const child: ResizeSnapshot = {
     x: 20,
     y: 30,
     width: 40,
     height: 20,
-    vectorNetwork: null
+    vectorNetwork: null,
+    fillGeometry: [],
+    strokeGeometry: [],
+    derivedTextGlyphs: null,
+    strokes: [],
+    textPathBox: null
   }
   const expectedX: Record<ConstraintType, [number, number]> = {
     MIN: [20, 40],
@@ -110,6 +124,11 @@ describe('constraint resize geometry', () => {
       origRect: { x: root.x, y: root.y, width: root.width, height: root.height },
       nodeId: root.id,
       origVectorNetwork: null,
+      origFillGeometry: [],
+      origStrokeGeometry: [],
+      origDerivedTextGlyphs: null,
+      origStrokes: [],
+      origTextPathBox: null,
       origChildren: new Map([
         [nested.id, original(nested)],
         [grandchild.id, original(grandchild)]
@@ -120,5 +139,50 @@ describe('constraint resize geometry', () => {
 
     expect(graph.getNode(nested.id)).toMatchObject({ x: 10, width: 150 })
     expect(graph.getNode(grandchild.id)).toMatchObject({ x: 130, width: 10 })
+  })
+
+  test('repositions constrained descendants after an in-flow child grows in resize preview', () => {
+    const graph = makeSceneGraph()
+    const pageId = firstPageId(graph)
+    const root = graph.createNode('FRAME', pageId, {
+      width: 100,
+      height: 100,
+      layoutMode: 'HORIZONTAL',
+      primaryAxisSizing: 'FIXED',
+      counterAxisSizing: 'FIXED'
+    })
+    const nested = graph.createNode('FRAME', root.id, {
+      width: 100,
+      height: 100,
+      layoutGrow: 1
+    })
+    const grandchild = graph.createNode('RECTANGLE', nested.id, {
+      x: 80,
+      y: 0,
+      width: 10,
+      height: 10,
+      horizontalConstraint: 'MAX'
+    })
+    const editor = createEditor({ graph })
+    const drag: DragResize = {
+      type: 'resize',
+      handle: 'e',
+      startX: 100,
+      startY: 50,
+      origRect: { x: root.x, y: root.y, width: root.width, height: root.height },
+      nodeId: root.id,
+      origVectorNetwork: null,
+      origFillGeometry: [],
+      origStrokeGeometry: [],
+      origDerivedTextGlyphs: null,
+      origStrokes: [],
+      origTextPathBox: null,
+      origChildren: collectResizeDescendants(graph, root.id)
+    }
+
+    applyResize(drag, 200, 50, false, editor)
+
+    expect(graph.getNode(nested.id)?.width).toBe(200)
+    expect(graph.getNode(grandchild.id)?.x).toBe(180)
   })
 })

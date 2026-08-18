@@ -12,6 +12,7 @@ import {
 import { resolveFigmaClipboardImages } from '@/app/editor/clipboard/figma-images'
 import { bindClipboardNotifications } from '@/app/editor/clipboard/notifications'
 import { loadFont } from '@/app/editor/fonts'
+import { createCanvasPaneRegistry } from '@/app/editor/panes/registry'
 import {
   createEditorComputedRefs,
   createEditorStoreModules,
@@ -49,17 +50,29 @@ export function createEditorStore(initialGraph?: SceneGraph) {
 
   const { selectedNodes, selectedNode, layerTree } = createEditorComputedRefs(editor, state)
 
-  const modules = createEditorStoreModules(editor, graph, state, io, viewportSize)
+  const modules = createEditorStoreModules(editor, state, io, viewportSize)
 
   // ─── Public API ───────────────────────────────────────────────
   // Spread all core Editor methods, then override getters and add app-specific.
 
+  const panes = createCanvasPaneRegistry(state)
+
   const store = {
     ...editor,
     state,
+    panes,
     selectedNodes,
     selectedNode,
     layerTree,
+    splitTree: panes.splitTree,
+    activePaneId: panes.activePaneId,
+    visiblePaneCount: panes.visiblePaneCount,
+    getPaneRenderState: panes.getPaneRenderState,
+    setActivePane: panes.setActivePane,
+    splitPane: panes.splitPane,
+    closePane: panes.closePane,
+    resizePane: panes.resizePane,
+    setSplitSizes: panes.setSplitSizes,
 
     // App-specific overrides and additions
     ...modules

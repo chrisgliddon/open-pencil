@@ -1,5 +1,5 @@
 export { buildDsdLayoutUpdates } from './derived-symbol-data/layout'
-export { propagateDsdChanges } from './derived-symbol-data/propagate'
+export { applyGeneratedFreeformStretch, propagateDsdChanges } from './derived-symbol-data/propagate'
 export { protectField, type ProtectionMap } from './patches'
 export { syncChildrenDeep, syncNodeProps } from './sync'
 export type {
@@ -16,7 +16,7 @@ export type {
 
 import { isEqual } from 'es-toolkit/predicate'
 
-import { guidToString } from '@open-pencil/fig/node-change'
+import { guidToString, resolvedNumericBindingUpdate } from '@open-pencil/fig/node-change'
 import type { SceneGraph, SceneNode } from '@open-pencil/scene-graph'
 import {
   copyFills,
@@ -24,17 +24,22 @@ import {
   hasSameCopySource,
   markCopySource
 } from '@open-pencil/scene-graph/copy'
-import type { JsonObject } from '@open-pencil/scene-graph/primitives'
+import type { JSONObject } from '@open-pencil/scene-graph/primitives'
 
 import { applyComponentProperties } from './component-props'
 import { applyConstraintScaling } from './constraints'
 import { applyDerivedSymbolData } from './derived-symbol-data'
+import {
+  applyGeneratedFreeformStretch,
+  reconcileEffectiveCloneGeometry
+} from './derived-symbol-data/propagate'
 import { populateInstances } from './populate'
 import { preComputeRoots } from './resolve'
 import { applySymbolOverrides } from './symbol/overrides'
 import { propagateNodePropsTransitively, propagateOverridesTransitively } from './sync'
 import { indexCloneNodes } from './sync/sources'
 import type { InstanceNodeChange, OverrideContext, ComponentPropValue } from './types'
+import { overrideCandidates } from './utils'
 
 /**
  * Identify nodes whose kiwi NC has explicit property values that DIFFER
@@ -57,7 +62,7 @@ function buildKiwiPropertyNodes(
 ): Set<string> {
   const result = new Set<string>()
   for (const [nodeId, change] of changedNodeEntries(changeMap, guidToNodeId)) {
-    const nc = change as JsonObject
+    const nc = change as JSONObject
     const node = graph.getNode(nodeId)
     if (!node?.componentId) continue
     const comp = graph.getNode(node.componentId)
@@ -66,7 +71,16 @@ function buildKiwiPropertyNodes(
       (nc.cornerRadius !== undefined || nc.rectangleCornerRadiiIndependent !== undefined) &&
       node.cornerRadius !== comp.cornerRadius
     const hasDiffVisible = nc.visible === false && comp.visible
-    if (hasDiffRadius || hasDiffVisible) result.add(nodeId)
+    const hasDiffFills = nc.fillPaints !== undefined && !isEqual(node.fills, comp.fills)
+    const hasDiffStrokes = nc.strokePaints !== undefined && !isEqual(node.strokes, comp.strokes)
+    const hasDiffText =
+      nc.textData !== undefined &&
+      node.type === 'TEXT' &&
+      comp.type === 'TEXT' &&
+      node.text !== comp.text
+    if (hasDiffRadius || hasDiffVisible || hasDiffFills || hasDiffStrokes || hasDiffText) {
+      result.add(nodeId)
+    }
   }
   return result
 }
@@ -82,15 +96,35 @@ function buildKiwiGeometryNodes(
   return result
 }
 
+function componentLinkedNodes(graph: SceneGraph): SceneNode[] {
+  const nodes: SceneNode[] = []
+  for (const node of graph.getAllNodes()) if (node.componentId) nodes.push(node)
+  return nodes
+}
+
+function instancePlacementPairs(
+  graph: SceneGraph
+): Array<{ sourceChildId: string; childId: string }> {
+  const pairs: Array<{ sourceChildId: string; childId: string }> = []
+  for (const node of graph.getAllNodes()) {
+    if (node.type !== 'INSTANCE' || !node.componentId) continue
+    const source = graph.getNode(node.componentId)
+    if (!source || source.childIds.length !== node.childIds.length) continue
+    for (let index = 0; index < node.childIds.length; index++) {
+      pairs.push({ sourceChildId: source.childIds[index], childId: node.childIds[index] })
+    }
+  }
+  return pairs
+}
+
 function propagateResolvedFills(
   graph: SceneGraph,
   protectedNodes: Set<string>,
-  activeNodeIds?: Set<string>
+  candidates = componentLinkedNodes(graph)
 ): void {
   for (let pass = 0; pass < 10; pass++) {
     let changed = false
-    for (const node of graph.getAllNodes()) {
-      if (activeNodeIds && !activeNodeIds.has(node.id)) continue
+    for (const node of candidates) {
       if (!node.componentId) continue
       const source = graph.getNode(node.componentId)
       if (!source || isEqual(source.fills, node.fills)) continue
@@ -102,47 +136,45 @@ function propagateResolvedFills(
   }
 }
 
-function propagateResolvedChildPlacementClones(graph: SceneGraph): void {
+function propagateResolvedChildPlacementClones(
+  graph: SceneGraph,
+  pairs = instancePlacementPairs(graph)
+): void {
   for (let pass = 0; pass < 10; pass++) {
     let changed = false
-    for (const node of graph.getAllNodes()) {
-      if (node.type !== 'INSTANCE' || !node.componentId) continue
-      const source = graph.getNode(node.componentId)
-      if (!source || source.childIds.length !== node.childIds.length) continue
-      for (let i = 0; i < node.childIds.length; i++) {
-        const sourceChild = graph.getNode(source.childIds[i])
-        const child = graph.getNode(node.childIds[i])
-        if (!sourceChild || !child) continue
-        if (
-          sourceChild.overrideKey &&
-          child.overrideKey &&
-          sourceChild.overrideKey !== child.overrideKey
-        ) {
-          continue
-        }
-        const updates: Partial<SceneNode> = {}
-        if (!sourceChild.visible && child.visible) updates.visible = false
-        if (sourceChild.x !== child.x) updates.x = sourceChild.x
-        if (sourceChild.y !== child.y) updates.y = sourceChild.y
-        if (Object.keys(updates).length === 0) continue
-        graph.updateNode(child.id, updates)
-        changed = true
+    for (const pair of pairs) {
+      const sourceChild = graph.getNode(pair.sourceChildId)
+      const child = graph.getNode(pair.childId)
+      if (!sourceChild || !child) continue
+      if (
+        sourceChild.overrideKey &&
+        child.overrideKey &&
+        sourceChild.overrideKey !== child.overrideKey
+      ) {
+        continue
       }
+      const updates: Partial<SceneNode> = {}
+      if (!sourceChild.visible && child.visible) updates.visible = false
+      if (sourceChild.x !== child.x) updates.x = sourceChild.x
+      if (sourceChild.y !== child.y) updates.y = sourceChild.y
+      if (Object.keys(updates).length === 0) continue
+      graph.updateNode(child.id, updates)
+      changed = true
     }
     if (!changed) return
   }
 }
 
 function sameDerivedGlyphSource(
-  source: SceneNode['figmaDerivedTextGlyphs'],
-  target: SceneNode['figmaDerivedTextGlyphs']
+  source: SceneNode['derivedTextGlyphs'],
+  target: SceneNode['derivedTextGlyphs']
 ): boolean {
   if (source === target) return true
   if (!source || !target) return false
   return hasSameCopySource(source, target)
 }
 
-function propagateResolvedTextClones(graph: SceneGraph): void {
+function propagateResolvedTextClones(graph: SceneGraph, activeNodeIds?: Set<string>): void {
   const ordered: SceneNode[] = []
   const visited = new Set<string>()
   const visiting = new Set<string>()
@@ -155,7 +187,7 @@ function propagateResolvedTextClones(graph: SceneGraph): void {
     visited.add(node.id)
     if (node.type === 'TEXT' && node.componentId) ordered.push(node)
   }
-  for (const nodeId of graph.nodes.keys()) {
+  for (const nodeId of activeNodeIds ?? graph.nodes.keys()) {
     const node = graph.getNode(nodeId)
     if (node?.type === 'TEXT' && node.componentId) visit(node)
   }
@@ -168,7 +200,7 @@ function propagateResolvedTextClones(graph: SceneGraph): void {
       source.height === node.height &&
       isEqual(source.fills, node.fills) &&
       isEqual(source.styleRuns, node.styleRuns) &&
-      sameDerivedGlyphSource(source.figmaDerivedTextGlyphs, node.figmaDerivedTextGlyphs)
+      sameDerivedGlyphSource(source.derivedTextGlyphs, node.derivedTextGlyphs)
     ) {
       continue
     }
@@ -177,11 +209,8 @@ function propagateResolvedTextClones(graph: SceneGraph): void {
       height: source.height,
       fills: copyFills(source.fills),
       styleRuns: copyStyleRuns(source.styleRuns),
-      figmaDerivedTextGlyphs: source.figmaDerivedTextGlyphs
-        ? markCopySource(
-            source.figmaDerivedTextGlyphs,
-            structuredClone(source.figmaDerivedTextGlyphs)
-          )
+      derivedTextGlyphs: source.derivedTextGlyphs
+        ? markCopySource(source.derivedTextGlyphs, structuredClone(source.derivedTextGlyphs))
         : undefined
     })
   }
@@ -244,8 +273,20 @@ function buildOverrideContext(
   }
 }
 
+function applyResolvedNumericBindings(graph: SceneGraph, activeNodeIds?: Set<string>): void {
+  for (const node of overrideCandidates(graph, activeNodeIds)) {
+    const updates: Partial<SceneNode> = {}
+    for (const [field, variableId] of Object.entries(node.boundVariables)) {
+      if (Array.isArray(variableId)) continue
+      const value = graph.resolveNumberVariableForNode(node.id, variableId)
+      if (value === undefined) continue
+      Object.assign(updates, resolvedNumericBindingUpdate(field, value))
+    }
+    if (Object.keys(updates).length > 0) graph.updateNode(node.id, updates)
+  }
+}
+
 /**
- * Populate empty instances from their components and apply symbol overrides.
  *
  * Shared between .fig file import and clipboard paste. Both paths produce
  * a SceneGraph with INSTANCE nodes whose componentId references have been
@@ -324,13 +365,17 @@ export function populateAndApplyOverrides(
   }
 
   applyDerivedSymbolData(ctx)
-  propagateResolvedFills(
-    graph,
-    new Set([...ctx.kiwiPropertyNodes, ...overriddenNodes]),
-    ctx.activeNodeIds
-  )
-  propagateResolvedTextClones(graph)
+  propagateResolvedFills(graph, new Set([...ctx.kiwiPropertyNodes, ...overriddenNodes]))
+  propagateResolvedTextClones(graph, ctx.activeNodeIds)
   applyConstraintScaling(ctx)
+  const scaledInstances = new Set<string>()
+  for (const node of overrideCandidates(graph, ctx.activeNodeIds)) {
+    if (node.type !== 'INSTANCE' || !node.componentId) continue
+    const component = graph.getNode(node.componentId)
+    if (component && (node.width !== component.width || node.height !== component.height)) {
+      scaledInstances.add(node.id)
+    }
+  }
   applyComponentProperties(ctx)
 
   // Final component-property swaps can replace descendants targeted by earlier
@@ -344,4 +389,9 @@ export function populateAndApplyOverrides(
     ctx.protectedFields,
     ctx.preComputedClones
   )
+  // Final swaps recreate descendants from component defaults. Reconcile only
+  // geometry that already had an authoritative effective size or cross-axis position.
+  reconcileEffectiveCloneGeometry(ctx, scaledInstances)
+  applyResolvedNumericBindings(graph, ctx.activeNodeIds)
+  applyGeneratedFreeformStretch(ctx)
 }

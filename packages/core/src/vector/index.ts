@@ -1,3 +1,5 @@
+export * from './vectorize'
+
 export {
   breakAtVertex,
   computeAccurateBounds,
@@ -17,19 +19,22 @@ export {
   decodeVectorNetworkBlob,
   encodeVectorNetworkBlob
 } from '@open-pencil/fig/node-change'
-import type { VectorNetwork, VectorSegment, VectorVertex } from '@open-pencil/scene-graph'
+import type { VectorNetwork, WindingRule } from '@open-pencil/scene-graph'
 
-import { addOpenSegmentsToPath, addSegmentDirected } from './path-helpers'
+import { addLoopToPath, addOpenSegmentsToPath } from './path-helpers'
 export { vectorNetworkToCenterlinePath, fitCircleArc, isClosedThinCrescent } from './centerline'
+export { regenerateFillGeometry } from './fill-geometry'
 
 export function vectorNetworkToPath(ck: CanvasKit, network: VectorNetwork): Path[] {
   const { vertices, segments, regions } = network
 
   if (regions.length > 0) {
     const paths: Path[] = []
+    const regionSegmentIndexes = new Set<number>()
     for (const region of regions) {
       const regionPath = new ck.Path()
       for (const loop of region.loops) {
+        for (const segmentIndex of loop) regionSegmentIndexes.add(segmentIndex)
         addLoopToPath(regionPath, loop, segments, vertices)
       }
       regionPath.setFillType(
@@ -37,49 +42,19 @@ export function vectorNetworkToPath(ck: CanvasKit, network: VectorNetwork): Path
       )
       paths.push(regionPath)
     }
+
+    const openSegments = segments.filter((_, index) => !regionSegmentIndexes.has(index))
+    if (openSegments.length > 0) {
+      const openPath = new ck.Path()
+      addOpenSegmentsToPath(openPath, openSegments, vertices)
+      paths.push(openPath)
+    }
     return paths
   }
 
   const path = new ck.Path()
   addOpenSegmentsToPath(path, segments, vertices)
   return [path]
-}
-
-function addLoopToPath(
-  path: Path,
-  loop: number[],
-  segments: VectorSegment[],
-  vertices: VectorVertex[]
-): void {
-  if (loop.length === 0) return
-
-  const firstSeg = segments[loop[0]]
-
-  // Determine the starting vertex — if the loop has multiple segments,
-  // the first segment's direction is determined by which vertex connects
-  // to the second segment.
-  let current: number
-  if (loop.length === 1) {
-    current = firstSeg.start
-  } else {
-    const secondSeg = segments[loop[1]]
-    if (firstSeg.end === secondSeg.start || firstSeg.end === secondSeg.end) {
-      current = firstSeg.start
-    } else {
-      current = firstSeg.end
-    }
-  }
-
-  path.moveTo(vertices[current].x, vertices[current].y)
-
-  for (const segIdx of loop) {
-    const seg = segments[segIdx]
-    const forward = seg.start === current
-    addSegmentDirected(path, seg, vertices, forward)
-    current = forward ? seg.end : seg.start
-  }
-
-  path.close()
 }
 
 const CMD_CLOSE = 0

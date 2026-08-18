@@ -2,6 +2,7 @@ import { transform } from 'sucrase'
 
 import type { SceneGraph } from '@open-pencil/scene-graph'
 
+import { DESIGN_JSX_SUPPORTED_PROPERTIES } from '#core/design-jsx/schema'
 import type { RenderOptions as RenderJSXOptions } from '#core/design-jsx/types'
 
 import { backgroundBlur, dropShadow, foregroundBlur, innerShadow, layerBlur } from './effects'
@@ -21,116 +22,9 @@ import { isTreeNode, resolveToTree, type TreeNode } from './tree'
  * Build a component function from a JSX string using sucrase.
  * Works in both Node/Bun and the browser (no native bindings).
  */
-const SUPPORTED_PROPS = new Set([
-  'name',
-  'key',
-  'flex',
-  'flow',
-  'dir',
-  'gap',
-  'wrap',
-  'rowGap',
-  'columnGap',
-  'justify',
-  'justifyContent',
-  'items',
-  'align',
-  'alignItems',
-  'grow',
-  'w',
-  'h',
-  'width',
-  'height',
-  'minW',
-  'maxW',
-  'minH',
-  'maxH',
-  'x',
-  'y',
-  'top',
-  'left',
-  'position',
-  'p',
-  'padding',
-  'px',
-  'py',
-  'pt',
-  'pr',
-  'pb',
-  'pl',
-  'bg',
-  'fill',
-  'fills',
-  'background',
-  'backgroundColor',
-  'stroke',
-  'border',
-  'borderColor',
-  'strokeWidth',
-  'borderWidth',
-  'strokeAlign',
-  'strokeDash',
-  'rounded',
-  'borderRadius',
-  'roundedTL',
-  'roundedTR',
-  'roundedBL',
-  'roundedBR',
-  'cornerRadius',
-  'cornerSmoothing',
-  'opacity',
-  'blendMode',
-  'rotate',
-  'rotation',
-  'overflow',
-  'shadow',
-  'blur',
-  'effects',
-  'size',
-  'fontSize',
-  'font',
-  'fontFamily',
-  'weight',
-  'fontWeight',
-  'color',
-  'text',
-  'characters',
-  'content',
-  'value',
-  'title',
-  'textAlign',
-  'textAlignHorizontal',
-  'textHorizontalAlignment',
-  'textAlignVertical',
-  'textVerticalAlignment',
-  'textAutoResize',
-  'lineHeight',
-  'letterSpacing',
-  'textDecoration',
-  'textCase',
-  'maxLines',
-  'truncate',
-  'grid',
-  'columns',
-  'rows',
-  'colStart',
-  'rowStart',
-  'col',
-  'row',
-  'colSpan',
-  'rowSpan',
-  'points',
-  'pointCount',
-  'innerRadius',
-  'label',
-  'style',
-  'bind',
-  'component',
-  'componentId',
-  'of'
-])
+const SUPPORTED_PROPS = DESIGN_JSX_SUPPORTED_PROPERTIES
 
-function stripHtmlComments(jsxString: string): string {
+function stripHTMLComments(jsxString: string): string {
   return jsxString.replace(/<!--[\s\S]*?-->/g, '')
 }
 
@@ -140,19 +34,26 @@ function unsupportedPropWarnings(tree: TreeNode): string[] {
   return warnings
 }
 
+const SVG_ROOT_PROPS = new Set([...SUPPORTED_PROPS, 'viewBox', 'body'])
+
 function collectUnsupportedPropWarnings(tree: TreeNode, warnings: string[]): void {
+  const supportedProps = tree.type === 'svg' ? SVG_ROOT_PROPS : SUPPORTED_PROPS
   for (const key of Object.keys(tree.props)) {
-    if (!SUPPORTED_PROPS.has(key)) {
+    if (!supportedProps.has(key)) {
       warnings.push(`Unsupported prop "${key}" on <${tree.type}> is ignored.`)
     }
   }
+
+  // SVG descendants are parsed as markup by renderSvgNode, not as Design JSX nodes.
+  if (tree.type === 'svg') return
+
   for (const child of tree.children) {
     if (isTreeNode(child)) collectUnsupportedPropWarnings(child, warnings)
   }
 }
 
 export function buildComponent(jsxString: string): React.ComponentType {
-  const trimmed = stripHtmlComments(jsxString).trim()
+  const trimmed = stripHTMLComments(jsxString).trim()
 
   const aliases = `
     const __h = React.createElement
@@ -162,6 +63,7 @@ export function buildComponent(jsxString: string): React.ComponentType {
     const Group = 'group', Section = 'section', View = 'frame', Rect = 'rectangle'
     const Component = 'component', ComponentSet = 'component-set', Instance = 'instance'
     const Icon = 'icon'
+    const svg = 'svg'
     const dropShadow = __helpers.dropShadow
     const innerShadow = __helpers.innerShadow
     const layerBlur = __helpers.layerBlur

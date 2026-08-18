@@ -11,9 +11,12 @@ import { convertFigmaDerivedTextGlyphs } from './derived-text-glyphs'
 import { convertFontFeatures } from './font/features'
 import { convertFontVariations } from './font/variations'
 import { convertEffects, convertFills, convertStrokes } from './paint'
+import { expandPathTextLayoutBox } from './path/text-layout'
 import {
   extractBoundVariables,
   extractExportSettings,
+  extractLibrarySource,
+  extractTextPathBox,
   extractPluginData,
   extractPluginRelaunchData,
   getOpenPencilPluginValue,
@@ -23,7 +26,13 @@ import {
 } from './plugin-data'
 import { importStyleRuns } from './style-runs'
 import { convertLetterSpacing, convertLineHeight, mapTextDecoration } from './text-values'
-import { resolveGeometryPaths, resolveVectorNetwork } from './vector-geometry'
+import {
+  alignGeometryWindingRules,
+  resolveGeometryPaths,
+  resolveVectorNetwork,
+  resolveVectorStyleOverrideFills
+} from './vector-geometry'
+import { decodeVectorNetworkBlob, type StyleOverride } from './vector-network'
 
 export { convertEffects, convertFills, convertStrokes, setVariableColorResolver } from './paint'
 export { importStyleRuns } from './style-runs'
@@ -55,59 +64,13 @@ import type {
   ComponentPropertyType,
   SymbolLink,
   VariantPropSpec,
-  VariableModeMap
+  VariableModeMap,
+  Vector
 } from '@open-pencil/scene-graph'
 import type { GUID } from '@open-pencil/scene-graph/primitives'
 
 export { guidToString, stringToGuid } from '@open-pencil/kiwi/fig/guid'
-
-export const VARIABLE_BINDING_FIELDS: Record<string, string> = {
-  // Corner radius
-  cornerRadius: 'CORNER_RADIUS',
-  topLeftRadius: 'RECTANGLE_TOP_LEFT_CORNER_RADIUS',
-  topRightRadius: 'RECTANGLE_TOP_RIGHT_CORNER_RADIUS',
-  bottomLeftRadius: 'RECTANGLE_BOTTOM_LEFT_CORNER_RADIUS',
-  bottomRightRadius: 'RECTANGLE_BOTTOM_RIGHT_CORNER_RADIUS',
-  // Stroke
-  strokeWeight: 'STROKE_WEIGHT',
-  borderTopWeight: 'BORDER_TOP_WEIGHT',
-  borderBottomWeight: 'BORDER_BOTTOM_WEIGHT',
-  borderLeftWeight: 'BORDER_LEFT_WEIGHT',
-  borderRightWeight: 'BORDER_RIGHT_WEIGHT',
-  // Auto-layout spacing & padding
-  itemSpacing: 'STACK_SPACING',
-  paddingLeft: 'STACK_PADDING_LEFT',
-  paddingTop: 'STACK_PADDING_TOP',
-  paddingRight: 'STACK_PADDING_RIGHT',
-  paddingBottom: 'STACK_PADDING_BOTTOM',
-  counterAxisSpacing: 'STACK_COUNTER_SPACING',
-  // Grid gaps
-  gridRowGap: 'GRID_ROW_GAP',
-  gridColumnGap: 'GRID_COLUMN_GAP',
-  // Visibility & opacity
-  visible: 'VISIBLE',
-  opacity: 'OPACITY',
-  // Dimensions
-  width: 'WIDTH',
-  height: 'HEIGHT',
-  minWidth: 'MIN_WIDTH',
-  maxWidth: 'MAX_WIDTH',
-  minHeight: 'MIN_HEIGHT',
-  maxHeight: 'MAX_HEIGHT',
-  // Position & rotation
-  x: 'X_POSITION',
-  y: 'Y_POSITION',
-  rotation: 'ROTATION',
-  // Text
-  fontSize: 'FONT_SIZE',
-  letterSpacing: 'LETTER_SPACING',
-  lineHeight: 'LINE_HEIGHT',
-  fontFamily: 'FONT_FAMILY'
-}
-
-export const VARIABLE_BINDING_FIELDS_INVERSE: Record<string, string> = Object.fromEntries(
-  Object.entries(VARIABLE_BINDING_FIELDS).map(([k, v]) => [v, k])
-)
+export { VARIABLE_BINDING_FIELDS, VARIABLE_BINDING_FIELDS_INVERSE } from './variable-bindings'
 
 interface FigVariableModeMap {
   entries?: Array<{
@@ -149,7 +112,9 @@ const NODE_TYPE_MAP: Record<string, NodeType | 'DOCUMENT' | 'VARIABLE'> = {
   INSTANCE: 'INSTANCE',
   SYMBOL: 'COMPONENT',
   CONNECTOR: 'CONNECTOR',
-  SHAPE_WITH_TEXT: 'SHAPE_WITH_TEXT'
+  SHAPE_WITH_TEXT: 'SHAPE_WITH_TEXT',
+  // Map to TEXT while retaining a format-neutral text path for rendering/editing.
+  TEXT_PATH: 'TEXT'
 }
 
 function mapNodeType(type?: string): NodeType | 'DOCUMENT' | 'VARIABLE' {
@@ -265,7 +230,7 @@ export function mapArcData(data?: Partial<ArcData>): ArcData | null {
   }
 }
 
-function convertTransformProps(
+export function convertFigmaTransformProps(
   nc: NodeChange
 ): Pick<SceneNode, 'x' | 'y' | 'width' | 'height' | 'rotation' | 'flipX' | 'flipY'> {
   const width = nc.size?.x ?? 100
@@ -279,28 +244,23 @@ function convertTransformProps(
     const t = nc.transform
     const det = t.m00 * t.m11 - t.m01 * t.m10
     if (det < 0) flipX = true
-    const sx = flipX ? -1 : 1
-    rotation = Math.atan2(t.m10 * sx, t.m00 * sx) * (180 / Math.PI)
+    rotation = Math.atan2(t.m10, flipX ? t.m11 : t.m00) * (180 / Math.PI)
 
-    if (rotation !== 0 && !flipX) {
-      const radians = (rotation * Math.PI) / 180
-      const cos = Math.cos(radians)
-      const sin = Math.sin(radians)
-      x = t.m02 - (width / 2) * (1 - cos) - sin * (height / 2)
-      y = t.m12 - (height / 2) * (1 - cos) + sin * (width / 2)
-    } else {
-      const corners = [
-        { x: 0, y: 0 },
-        { x: width, y: 0 },
-        { x: 0, y: height },
-        { x: width, y: height }
-      ].map((point) => ({
-        x: t.m00 * point.x + t.m01 * point.y + t.m02,
-        y: t.m10 * point.x + t.m11 * point.y + t.m12
-      }))
-      x = Math.min(...corners.map((point) => point.x))
-      y = Math.min(...corners.map((point) => point.y))
-    }
+    // Scene nodes apply their reflection and rotation around the center. Decompose the Figma
+    // matrix into that same linear transform, then recover the node translation so recomposing
+    // it produces the original matrix. Reflected rotations need their angle read from the
+    // second row; treating them as ordinary rotations reverses connector instances by 180°.
+    const radians = (rotation * Math.PI) / 180
+    const cos = Math.cos(radians)
+    const sin = Math.sin(radians)
+    const centerX = width / 2
+    const centerY = height / 2
+    const m00 = flipX ? -cos : cos
+    const m01 = flipX ? sin : -sin
+    const m10 = sin
+    const m11 = cos
+    x = t.m02 - centerX + m00 * centerX + m01 * centerY
+    y = t.m12 - centerY + m10 * centerX + m11 * centerY
   }
 
   return { x, y, width, height, rotation, flipX, flipY: false }
@@ -360,8 +320,8 @@ type TextProps = Pick<
   | 'fontFeatures'
   | 'textTruncation'
   | 'textDirection'
-  | 'figmaDerivedLayout'
-  | 'figmaDerivedTextGlyphs'
+  | 'derivedLayout'
+  | 'derivedTextGlyphs'
 >
 
 function convertTextDecorationProps(
@@ -413,24 +373,25 @@ function convertTextProps(nc: NodeChange, blobs: Uint8Array[]): TextProps {
       (getOpenPencilPluginValue(nc, TEXT_DIRECTION_PLUGIN_KEY) as
         | SceneNode['textDirection']
         | null) || 'AUTO',
-    figmaDerivedLayout: nc.derivedTextData?.layoutSize
+    derivedLayout: nc.derivedTextData?.layoutSize
       ? {
           width: nc.derivedTextData.layoutSize.x,
           height: nc.derivedTextData.layoutSize.y
         }
       : null,
-    figmaDerivedTextGlyphs: convertFigmaDerivedTextGlyphs(nc.derivedTextData, blobs)
+    derivedTextGlyphs: convertFigmaDerivedTextGlyphs(nc.derivedTextData, blobs)
   }
 }
 
 function convertLayoutPadding(
   nc: NodeChange
 ): Pick<SceneNode, 'paddingTop' | 'paddingBottom' | 'paddingLeft' | 'paddingRight'> {
+  const basePadding = nc.stackPadding ?? 0
   return {
-    paddingTop: nc.stackVerticalPadding ?? nc.stackPadding ?? 0,
-    paddingBottom: nc.stackPaddingBottom ?? nc.stackVerticalPadding ?? nc.stackPadding ?? 0,
-    paddingLeft: nc.stackHorizontalPadding ?? nc.stackPadding ?? 0,
-    paddingRight: nc.stackPaddingRight ?? nc.stackHorizontalPadding ?? nc.stackPadding ?? 0
+    paddingTop: nc.stackVerticalPadding ?? basePadding,
+    paddingBottom: nc.stackPaddingBottom ?? basePadding,
+    paddingLeft: nc.stackHorizontalPadding ?? basePadding,
+    paddingRight: nc.stackPaddingRight ?? basePadding
   }
 }
 
@@ -439,7 +400,7 @@ function visibleContainerDerivedLayout(
   layoutMode: SceneNode['layoutMode'],
   primaryAxisSizing: SceneNode['primaryAxisSizing'],
   counterAxisSizing: SceneNode['counterAxisSizing']
-): SceneNode['figmaDerivedLayout'] | undefined {
+): SceneNode['derivedLayout'] | undefined {
   const hasHugAxis = primaryAxisSizing === 'HUG' || counterAxisSizing === 'HUG'
   const hasVisiblePaint =
     (nc.fillPaints?.some((paint) => paint.visible !== false) ?? false) ||
@@ -452,6 +413,16 @@ function visibleContainerDerivedLayout(
     width: nc.size?.x ?? 100,
     height: nc.size?.y ?? 100
   }
+}
+
+function minimumSizeDimension(size: NodeChange['minSize'], axis: 'x' | 'y'): number | null {
+  const value = size?.value?.[axis]
+  return typeof value === 'number' && Number.isFinite(value) && value > 0 ? value : null
+}
+
+function maximumSizeDimension(size: NodeChange['maxSize'], axis: 'x' | 'y'): number | null {
+  const value = size?.value?.[axis]
+  return typeof value === 'number' && Number.isFinite(value) && value >= 0 ? value : null
 }
 
 function convertLayoutProps(
@@ -478,11 +449,11 @@ function convertLayoutProps(
   | 'strokesIncludedInLayout'
   | 'layoutDirection'
 > &
-  Partial<Pick<SceneNode, 'figmaDerivedLayout'>> {
+  Partial<Pick<SceneNode, 'derivedLayout'>> {
   const layoutMode = mapStackMode(nc.stackMode)
   const primaryAxisSizing = mapStackSizing(nc.stackPrimarySizing)
   const counterAxisSizing = mapStackSizing(nc.stackCounterSizing)
-  const figmaDerivedLayout = visibleContainerDerivedLayout(
+  const derivedLayout = visibleContainerDerivedLayout(
     nc,
     layoutMode,
     primaryAxisSizing,
@@ -510,7 +481,7 @@ function convertLayoutProps(
       (getOpenPencilPluginValue(nc, LAYOUT_DIRECTION_PLUGIN_KEY) as
         | SceneNode['layoutDirection']
         | null) || 'AUTO',
-    ...(figmaDerivedLayout ? { figmaDerivedLayout } : {})
+    ...(derivedLayout ? { derivedLayout } : {})
   }
 }
 
@@ -542,13 +513,50 @@ function convertLayoutGrids(value: unknown): LayoutGrid[] {
   return Array.isArray(value) ? structuredClone(value as LayoutGrid[]) : []
 }
 
+function convertTextPathData(nc: NodeChange, blobs: Uint8Array[]): SceneNode['textPathData'] {
+  if (nc.type !== 'TEXT_PATH') return null
+  const vectorData = nc.vectorData as
+    | {
+        vectorNetworkBlob?: number
+        normalizedSize?: Vector
+        styleOverrideTable?: StyleOverride[]
+      }
+    | undefined
+  const blobIndex = vectorData?.vectorNetworkBlob
+  const normalizedSize = vectorData?.normalizedSize
+  if (
+    typeof blobIndex !== 'number' ||
+    !normalizedSize ||
+    normalizedSize.x <= 0 ||
+    normalizedSize.y <= 0
+  ) {
+    return null
+  }
+  const blob = blobs[blobIndex]
+  const textPathStart = nc.textPathStart as { tValue?: number; forward?: boolean } | undefined
+  try {
+    return {
+      network: decodeVectorNetworkBlob(blob, vectorData.styleOverrideTable),
+      normalizedSize: { x: normalizedSize.x, y: normalizedSize.y },
+      tValue: textPathStart?.tValue ?? 0,
+      forward: textPathStart?.forward ?? true
+    }
+  } catch {
+    return null
+  }
+}
+
 function convertVectorAndStrokeProps(nc: NodeChange, blobs: Uint8Array[]) {
   const vectorNetwork = resolveVectorNetwork(nc, blobs)
   const strokeCap = getVectorStrokeCap(nc, vectorNetwork)
   const strokeJoin = getVectorStrokeJoin(nc, vectorNetwork)
+  const fillGeometry = alignGeometryWindingRules(
+    resolveGeometryPaths(nc.fillGeometry, blobs, resolveVectorStyleOverrideFills(nc)),
+    vectorNetwork
+  )
   return {
     vectorNetwork,
-    fillGeometry: resolveGeometryPaths(nc.fillGeometry, blobs),
+    fillGeometry,
     strokeGeometry: resolveGeometryPaths(nc.strokeGeometry, blobs),
     arcData: mapArcData(nc.arcData as Partial<ArcData> | undefined),
     strokeCap,
@@ -609,12 +617,13 @@ export function nodeChangeToProps(
   const nodeType = resolveNodeType(nc)
 
   const vectorAndStrokeProps = convertVectorAndStrokeProps(nc, blobs)
+  const textPathData = convertTextPathData(nc, blobs)
 
-  return {
+  const props: Partial<SceneNode> & { nodeType: NodeType | 'DOCUMENT' | 'VARIABLE' } = {
     nodeType,
     name: nc.name ?? nodeType,
     source: extractSourceMetadata(nc, blobs),
-    ...convertTransformProps(nc),
+    ...convertFigmaTransformProps(nc),
     opacity: nc.opacity ?? 1,
     visible: nc.visible ?? true,
     locked: nc.locked ?? false,
@@ -643,10 +652,10 @@ export function nodeChangeToProps(
     verticalConstraint: mapConstraint(nc.verticalConstraint as string),
     ...convertLayoutProps(nc),
     ...vectorAndStrokeProps,
-    minWidth: (nc.minWidth ?? null) as number | null,
-    maxWidth: (nc.maxWidth ?? null) as number | null,
-    minHeight: (nc.minHeight ?? null) as number | null,
-    maxHeight: (nc.maxHeight ?? null) as number | null,
+    minWidth: minimumSizeDimension(nc.minSize, 'x'),
+    maxWidth: maximumSizeDimension(nc.maxSize, 'x'),
+    minHeight: minimumSizeDimension(nc.minSize, 'y'),
+    maxHeight: maximumSizeDimension(nc.maxSize, 'y'),
     isMask: nc.mask ?? false,
     maskType: (nc.maskType ?? 'ALPHA') as 'ALPHA' | 'VECTOR' | 'LUMINANCE',
     maskIsOutline: nc.maskIsOutline ?? false,
@@ -656,6 +665,7 @@ export function nodeChangeToProps(
     variableModes: extractVariableModes(nc),
     exportSettings: extractExportSettings(nc),
     pluginData: extractPluginData(nc),
+    librarySource: extractLibrarySource(nc),
     pluginRelaunchData: extractPluginRelaunchData(nc),
     clipsContent: nc.frameMaskDisabled === false && nc.resizeToFit !== true,
     componentId: extractSymbolId(nc),
@@ -665,6 +675,24 @@ export function nodeChangeToProps(
     componentPropertyValues: extractComponentPropertyValues(nc),
     ...extractComponentMetadata(nc)
   }
+
+  // See path/text-layout.ts — expand the layout box before node creation so
+  // clipsContent parents don't shave overflowing path lettering at first paint.
+  expandPathTextLayoutBox(props, textPathData)
+  // A saved OpenPencil doc carries the true textPathBox (reflow may have
+  // scaled it); the expand-time reconstruction is only right for pristine
+  // Figma exports. Plugin box is in pre-expansion local coords — expand's
+  // shift is textPathBox.x/y by construction, so re-home it.
+  const pluginBox = extractTextPathBox(nc)
+  if (pluginBox && props.textPathBox) {
+    props.textPathBox = {
+      x: pluginBox.x + props.textPathBox.x,
+      y: pluginBox.y + props.textPathBox.y,
+      width: pluginBox.width,
+      height: pluginBox.height
+    }
+  }
+  return props
 }
 
 const COMPONENT_PROP_TYPE_MAP: Record<string, ComponentPropertyType> = {

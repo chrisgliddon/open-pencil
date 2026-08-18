@@ -1,43 +1,26 @@
-import { resolveGeometryPaths } from '@open-pencil/fig/node-change'
-import type { GeometryPath, SceneNode } from '@open-pencil/scene-graph'
+import {
+  alignGeometryWindingRules,
+  resolveGeometryPaths,
+  resolveVectorStyleOverrideFills
+} from '@open-pencil/fig/node-change'
+import type { SceneNode } from '@open-pencil/scene-graph'
+import { scaleGeometryPaths } from '@open-pencil/scene-graph/copy'
+import { cloneVectorNetwork } from '@open-pencil/scene-graph/vector-network'
 
 import type { DerivedSymbolOverride } from '../types'
-
-function scaleGeometryBlobs(geom: GeometryPath[], sx: number, sy: number): GeometryPath[] {
-  if (sx === 1 && sy === 1) return geom
-  return geom.map((g) => {
-    const scaled = g.commandsBlob.slice()
-    const dv = new DataView(scaled.buffer, scaled.byteOffset, scaled.byteLength)
-    let o = 0
-    while (o < scaled.length) {
-      const cmd = scaled[o++]
-      if (cmd === 0) continue
-      let coords = -1
-      if (cmd === 1 || cmd === 2) coords = 1
-      else if (cmd === 4) coords = 3
-      if (coords < 0) break
-      for (let i = 0; i < coords; i++) {
-        dv.setFloat32(o, dv.getFloat32(o, true) * sx, true)
-        dv.setFloat32(o + 4, dv.getFloat32(o + 4, true) * sy, true)
-        o += 8
-      }
-    }
-    return { windingRule: g.windingRule, commandsBlob: scaled }
-  })
-}
 
 export function resolveDsdGeometry(
   d: DerivedSymbolOverride,
   target: SceneNode,
   blobs: Uint8Array[]
-): Pick<Partial<SceneNode>, 'fillGeometry' | 'strokeGeometry'> {
-  const result: Pick<Partial<SceneNode>, 'fillGeometry' | 'strokeGeometry'> = {}
-  const fg = resolveGeometryPaths(d.fillGeometry, blobs)
+): Pick<Partial<SceneNode>, 'fillGeometry' | 'strokeGeometry' | 'vectorNetwork'> {
+  const result: Pick<Partial<SceneNode>, 'fillGeometry' | 'strokeGeometry' | 'vectorNetwork'> = {}
+  const fg = resolveGeometryPaths(d.fillGeometry, blobs, resolveVectorStyleOverrideFills(d))
   const sg = resolveGeometryPaths(d.strokeGeometry, blobs)
 
-  if (fg.length > 0) result.fillGeometry = fg
+  if (fg.length > 0) result.fillGeometry = alignGeometryWindingRules(fg, target.vectorNetwork)
   else if (d.size && target.fillGeometry.length > 0 && target.width > 0 && target.height > 0) {
-    result.fillGeometry = scaleGeometryBlobs(
+    result.fillGeometry = scaleGeometryPaths(
       target.fillGeometry,
       d.size.x / target.width,
       d.size.y / target.height
@@ -46,11 +29,34 @@ export function resolveDsdGeometry(
 
   if (sg.length > 0) result.strokeGeometry = sg
   else if (d.size && target.strokeGeometry.length > 0 && target.width > 0 && target.height > 0) {
-    result.strokeGeometry = scaleGeometryBlobs(
+    result.strokeGeometry = scaleGeometryPaths(
       target.strokeGeometry,
       d.size.x / target.width,
       d.size.y / target.height
     )
+  }
+
+  if (d.size && target.vectorNetwork?.vertices.length) {
+    const network = cloneVectorNetwork(target.vectorNetwork)
+    const originX = Math.min(...network.vertices.map(({ x }) => x))
+    const originY = Math.min(...network.vertices.map(({ y }) => y))
+    const xs = network.vertices.map(({ x }) => x)
+    const ys = network.vertices.map(({ y }) => y)
+    const networkWidth = Math.max(...xs) - Math.min(...xs)
+    const networkHeight = Math.max(...ys) - Math.min(...ys)
+    const scaleX = networkWidth === 0 ? 1 : d.size.x / networkWidth
+    const scaleY = networkHeight === 0 ? 1 : d.size.y / networkHeight
+    for (const vertex of network.vertices) {
+      vertex.x = originX + (vertex.x - originX) * scaleX
+      vertex.y = originY + (vertex.y - originY) * scaleY
+    }
+    for (const segment of network.segments) {
+      segment.tangentStart.x *= scaleX
+      segment.tangentStart.y *= scaleY
+      segment.tangentEnd.x *= scaleX
+      segment.tangentEnd.y *= scaleY
+    }
+    result.vectorNetwork = network
   }
 
   return result

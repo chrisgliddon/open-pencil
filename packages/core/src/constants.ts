@@ -10,6 +10,11 @@ export const DEFAULT_SHADOW_COLOR: Color = { r: 0, g: 0, b: 0, a: 0.25 }
 export const SELECTION_COLOR = { r: 0.23, g: 0.51, b: 0.96, a: 1 } satisfies Color
 export const COMPONENT_COLOR = { r: 0.592, g: 0.278, b: 1, a: 1 } satisfies Color
 export const SNAP_COLOR = { r: 1.0, g: 0.0, b: 0.56, a: 1 } satisfies Color
+export const MEASUREMENT_COLOR = { r: 0.949, g: 0.282, b: 0.133, a: 1 } satisfies Color
+export const MEASUREMENT_PILL_PADDING_X = 5
+export const MEASUREMENT_PILL_HEIGHT = 18
+export const MEASUREMENT_PILL_RADIUS = 3
+export const MEASUREMENT_TEXT_BASELINE = 4
 export const CANVAS_BG_COLOR = { r: 0.96, g: 0.96, b: 0.96, a: 1 } satisfies Color
 export const CANVAS_BG_COLOR_DARK = { r: 0.133, g: 0.133, b: 0.133, a: 1 } satisfies Color // #222222
 export const CANVAS_GRID_DOT_COLOR = { r: 0.22, g: 0.22, b: 0.22, a: 1 } satisfies Color
@@ -197,6 +202,8 @@ export interface ModelOption {
   id: string
   name: string
   tag?: string
+  capabilities?: readonly ('tools' | 'vision')[]
+  recommendedMaxOutputTokens?: number
 }
 
 export interface AIProviderDef {
@@ -308,9 +315,10 @@ export const AI_PROVIDERS: AIProviderDef[] = [
     name: 'MiniMax',
     keyPlaceholder: 'API key',
     keyURL: 'https://platform.minimax.io/user-center/basic-information/interface-key',
-    defaultModel: 'MiniMax-M2.7',
+    defaultModel: 'MiniMax-M3',
     models: [
-      { id: 'MiniMax-M2.7', name: 'MiniMax-M2.7', tag: 'Best' },
+      { id: 'MiniMax-M3', name: 'MiniMax-M3', tag: 'Best' },
+      { id: 'MiniMax-M2.7', name: 'MiniMax-M2.7' },
       { id: 'MiniMax-M2.7-highspeed', name: 'MiniMax-M2.7-highspeed', tag: 'Fast' },
       { id: 'MiniMax-M2.5', name: 'MiniMax-M2.5' },
       { id: 'MiniMax-M2.5-highspeed', name: 'MiniMax-M2.5 Highspeed', tag: 'Fast' },
@@ -341,11 +349,11 @@ export const AI_PROVIDERS: AIProviderDef[] = [
   }
 ]
 
-export const DEFAULT_AI_PROVIDER: AIProviderID = 'openrouter'
-export const DEFAULT_AI_MODEL = AI_PROVIDERS[0].defaultModel
+export const DEFAULT_AI_PROVIDER: AIProviderID = 'openai-compatible'
+export const DEFAULT_AI_MODEL =
+  AI_PROVIDERS.find((provider) => provider.id === DEFAULT_AI_PROVIDER)?.defaultModel ?? ''
 
 export const AUTOMATION_HTTP_PORT = 7600
-export const AUTOMATION_WS_PORT = 7601
 
 export const GOOGLE_FONTS_API_KEY = 'AIzaSyD1tYDR_dUEiV-Tw1vksEhZbUytgKW5pc8'
 

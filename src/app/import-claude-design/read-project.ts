@@ -32,7 +32,7 @@ export interface ScreenFile extends ProjectFile {
   truncated: boolean
 }
 
-export interface CssFile extends ProjectFile {
+export interface CSSFile extends ProjectFile {
   source: string
 }
 
@@ -67,7 +67,7 @@ export interface ProjectManifest {
   /** Screen components, sorted by name. */
   screens: ScreenFile[]
   /** CSS files, deduped by content; design-token CSS sorted first. */
-  css: CssFile[]
+  css: CSSFile[]
   /** UI image assets (png/svg/webp/jpg) — placeable via `place_asset`. */
   assets: AssetFile[]
   /** The App/index router file if present (source included). */
@@ -75,7 +75,7 @@ export interface ProjectManifest {
   /** Raw README/SKILL text if present, for brand context. */
   readme?: string
   /** Static data sidecars (*.data.js) with truncated source. */
-  dataFiles: CssFile[]
+  dataFiles: CSSFile[]
   /** screenshots/ capture paths — visual ground truth, listed only. */
   screenshots: string[]
   /** uploads/ raw reference files — listed only, not UI assets. */
@@ -210,9 +210,9 @@ interface ManifestCard {
   viewport?: string
 }
 
-function parseDesignSystemCards(manifestJson: string): string[] {
+function parseDesignSystemCards(manifestJSON: string): string[] {
   try {
-    const parsed: unknown = JSON.parse(manifestJson)
+    const parsed: unknown = JSON.parse(manifestJSON)
     if (typeof parsed !== 'object' || parsed === null) return []
     const cards = (parsed as { cards?: unknown }).cards
     if (!Array.isArray(cards)) return []
@@ -258,7 +258,7 @@ function resolveRelativePath(fromDir: string, target: string): string {
 
 // Assign @font-face family names to the collected font files, matching by
 // resolved path first and by basename as a fallback.
-function applyFontFaceFamilies(fonts: ProjectFontFile[], cssFiles: CssFile[]): void {
+function applyFontFaceFamilies(fonts: ProjectFontFile[], cssFiles: CSSFile[]): void {
   const byPath = new Map(fonts.map((font) => [font.relativePath, font]))
   const byBase = new Map(fonts.map((font) => [basename(font.relativePath), font]))
   for (const css of cssFiles) {
@@ -275,10 +275,10 @@ function applyFontFaceFamilies(fonts: ProjectFontFile[], cssFiles: CssFile[]): v
 
 interface ManifestBucket {
   screens: ScreenFile[]
-  css: CssFile[]
-  tokensCss: CssFile[]
+  css: CSSFile[]
+  tokensCss: CSSFile[]
   assets: AssetFile[]
-  dataFiles: CssFile[]
+  dataFiles: CSSFile[]
   screenshots: string[]
   uploads: string[]
   fonts: ProjectFontFile[]
@@ -418,12 +418,12 @@ async function buildManifestFromFiles(
   const cssNames = new Set(
     [...bucket.tokensCss, ...bucket.css].map((file) => basename(file.relativePath))
   )
-  const dedupedCss = bucket.css.filter((file) => {
+  const dedupedCSS = bucket.css.filter((file) => {
     const base = basename(file.relativePath)
     return !(base.endsWith('.min.css') && cssNames.has(base.replace(/\.min\.css$/, '.css')))
   })
 
-  const css = [...bucket.tokensCss, ...dedupedCss]
+  const css = [...bucket.tokensCss, ...dedupedCSS]
   applyFontFaceFamilies(bucket.fonts, css)
 
   return {

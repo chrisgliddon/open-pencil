@@ -154,7 +154,7 @@ function onToggleSides(activeNode: SceneNode | null) {
                   <button
                     type="button"
                     :aria-label="panels.stroke"
-                    class="size-5 shrink-0 cursor-pointer rounded border-0 bg-transparent p-0"
+                    class="size-4 shrink-0 cursor-pointer rounded-sm border-0 bg-transparent p-0"
                   >
                     <FillSwatch
                       :fill="strokePreview(stroke, binding.resolvedValue ?? stroke.color)"
@@ -222,7 +222,7 @@ function onToggleSides(activeNode: SceneNode | null) {
         </Tip>
         <IconButton
           :label="panels.strokeSides"
-          size="md"
+          size="xs"
           class="size-[26px] shrink-0"
           :active="expandedSides"
           data-property="stroke-sides"
@@ -235,7 +235,7 @@ function onToggleSides(activeNode: SceneNode | null) {
       <div v-if="!isMixed && items.length > 0" class="mt-1.5 flex items-center gap-1.5">
         <IconButton
           :label="panels.strokeDash"
-          size="md"
+          size="xs"
           class="shrink-0"
           :active="strokeCtx.dashState(items[0]).on"
           data-property="stroke-dash"
@@ -266,7 +266,7 @@ function onToggleSides(activeNode: SceneNode | null) {
         </template>
       </div>
 
-      <PanelGrid v-if="advancedActive" columns="three" class="mt-1.5">
+      <PanelGrid v-if="advancedActive" :columns="3" class="mt-1.5">
         <PanelFieldGroup :label="panels.strokeCap">
           <SegmentedControl
             :model-value="cap === MIXED ? 'MIXED' : cap"

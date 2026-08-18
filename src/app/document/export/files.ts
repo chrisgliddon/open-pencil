@@ -105,17 +105,17 @@ export function createExportTargetActions(editor: Editor, state: EditorState, io
   async function renderExportImage(
     nodeIds: string[],
     scale: number,
-    format: RasterExportFormat
+    format: RasterExportFormat,
+    pageId = state.currentPageId
   ): Promise<Uint8Array | null> {
     const renderer = editor.renderer
     if (!renderer) return null
-    const ids =
-      nodeIds.length > 0 ? nodeIds : editor.graph.getChildren(state.currentPageId).map((n) => n.id)
+    const ids = nodeIds.length > 0 ? nodeIds : editor.graph.getChildren(pageId).map((n) => n.id)
     if (ids.length === 0) return null
     // Render against the page that owns the nodes — component previews and
     // exports must work for nodes on non-current pages too.
-    const pageId = findPageId(editor.graph, ids[0]) ?? state.currentPageId
-    return renderNodesToImage(renderer.ck, renderer, editor.graph, pageId, ids, {
+    const resolvedPageId = findPageId(editor.graph, ids[0]) ?? pageId
+    return renderNodesToImage(renderer.ck, renderer, editor.graph, resolvedPageId, ids, {
       scale,
       format
     })

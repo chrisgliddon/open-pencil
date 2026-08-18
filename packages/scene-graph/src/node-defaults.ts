@@ -38,7 +38,7 @@ export function createDefaultNode(
     height: 100,
     rotation: 0,
     source: createDefaultSourceMetadata(),
-    figmaDerivedLayout: null,
+    derivedLayout: null,
     fills:
       type === 'TEXT' ? [{ type: 'SOLID' as const, color: BLACK, opacity: 1, visible: true }] : [],
     strokes: [],
@@ -90,6 +90,7 @@ export function createDefaultNode(
     layoutGrow: 0,
     layoutAlignSelf: 'AUTO',
     vectorNetwork: null,
+    handleMirroring: 'NONE',
     fillGeometry: [],
     strokeGeometry: [],
     arcData: null,
@@ -149,6 +150,7 @@ export function createDefaultNode(
     overrideKey: null,
     sharedSymbolVersion: null,
     publishedVersion: null,
+    librarySource: null,
     isPublishable: false,
     isSymbolPublishable: false,
     symbolDescription: '',
@@ -163,7 +165,9 @@ export function createDefaultNode(
     flipX: false,
     flipY: false,
     textPicture: null,
-    figmaDerivedTextGlyphs: null,
+    derivedTextGlyphs: null,
+    textPathData: null,
+    textPathBox: null,
     ...overrides
   }
 }

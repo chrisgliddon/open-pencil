@@ -1,6 +1,7 @@
 /* eslint-disable max-lines -- SceneGraph exposes a stable facade over domain modules */
 export * from './images'
 export * from './copy'
+export { copyInstanceComponentProps } from './instances'
 export * from './snap'
 export * from './export-scale'
 export * from './coordinate'
@@ -23,11 +24,11 @@ import { CONTAINER_TYPES, createDefaultNode } from './node-defaults'
 import { updateNodePreview } from './preview'
 import { styleDetachmentChanges } from './shared-styles'
 import { markSourceFieldsEdited } from './source-metadata'
-import { TEXT_PICTURE_KEYS } from './text-picture'
+import { GLYPH_AFFECTING_KEYS, invalidateTextCaches, TEXT_PICTURE_KEYS } from './text-picture'
 import * as Variables from './variables'
 import { normalizeVectorNetwork } from './vector-network'
 
-export type { GUID, Color } from './primitives'
+export type { GUID, Color, Size, Vector } from './primitives'
 export * from './types'
 
 import type { Emitter } from 'nanoevents'
@@ -36,6 +37,7 @@ import { getAbsolutePosition } from './coordinate'
 import type { Color, Rect, Vector } from './primitives'
 import type {
   DocumentColorSpace,
+  EnabledLibraryBinding,
   NodeType,
   SceneGraphEventHandlers,
   SceneGraphEvents,
@@ -47,7 +49,14 @@ import type {
   VariableValue
 } from './types'
 
-export { cloneVectorNetwork, normalizeVectorNetwork, validateVectorNetwork } from './vector-network'
+export {
+  cloneVectorNetwork,
+  mergeVectorNetworks,
+  normalizeVectorNetwork,
+  transformVectorNetwork,
+  validateVectorNetwork,
+  vectorNetworksEqual
+} from './vector-network'
 
 let nextLocalID = 1
 
@@ -66,10 +75,12 @@ export class SceneGraph {
   /** Deflated kiwi schema bytes from the original .fig file, preserved for roundtrip fidelity. */
   figSchemaDeflated: Uint8Array | null = null
   documentColorSpace: DocumentColorSpace = 'display-p3'
+  enabledLibraries = new Map<string, EnabledLibraryBinding>()
   readonly emitter: Emitter<SceneGraphEvents> = createNanoEvents()
   private absPosCache = new Map<string, Vector>()
   private previewMutationDepth = 0
   private sourceMetadataPreservationDepth = 0
+  private layoutMutationDepth = 0
   positionPreviewVersion = 0
   instanceIndex = new Map<string, Set<string>>()
 
@@ -301,6 +312,7 @@ export class SceneGraph {
   }
 
   static TEXT_PICTURE_KEYS: ReadonlySet<string> = TEXT_PICTURE_KEYS
+  static GLYPH_AFFECTING_KEYS: ReadonlySet<string> = GLYPH_AFFECTING_KEYS
 
   static LAYOUT_AFFECTING_KEYS: ReadonlySet<string> = new Set([
     'x',
@@ -357,6 +369,17 @@ export class SceneGraph {
       this.sourceMetadataPreservationDepth--
     }
   }
+  withLayoutMutations(fn: () => void): void {
+    this.layoutMutationDepth++
+    try {
+      fn()
+    } finally {
+      this.layoutMutationDepth--
+    }
+  }
+  get isApplyingLayout(): boolean {
+    return this.layoutMutationDepth > 0
+  }
   updateNodePositionPreview(id: string, x: number, y: number): void {
     this.updateNodePreview(id, { x, y })
   }
@@ -372,7 +395,15 @@ export class SceneGraph {
 
     const node = this.nodes.get(id)
     if (!node) return
+    let entries = Object.entries(changes) as Array<[string, unknown]>
+    changes = Object.fromEntries(
+      entries.filter(([, value]) => value !== undefined)
+    ) as Partial<SceneNode>
     changes = styleDetachmentChanges(node, changes)
+    entries = Object.entries(changes) as Array<[string, unknown]>
+    changes = Object.fromEntries(
+      entries.filter(([, value]) => value !== undefined)
+    ) as Partial<SceneNode>
 
     // Only clear absPosCache when layout-affecting properties change.
     // Fills, strokes, effects, plugin data changes do NOT affect absolute position.
@@ -393,15 +424,7 @@ export class SceneGraph {
         set.add(id)
       }
     }
-    if (node.type === 'TEXT') {
-      const textChanged = Object.keys(changes).some((k) => TEXT_PICTURE_KEYS.has(k))
-      if (node.textPicture && textChanged) node.textPicture = null
-      if (node.figmaDerivedTextGlyphs && textChanged) node.figmaDerivedTextGlyphs = null
-    }
-    const entries = Object.entries(changes) as Array<[string, unknown]>
-    changes = Object.fromEntries(
-      entries.filter(([, value]) => value !== undefined)
-    ) as Partial<SceneNode>
+    if (node.type === 'TEXT') invalidateTextCaches(node, changes)
     if (this.sourceMetadataPreservationDepth === 0) {
       markSourceFieldsEdited(node, Object.keys(changes))
     }
@@ -453,7 +476,7 @@ export class SceneGraph {
 
     const oldParent = node.parentId ? this.nodes.get(node.parentId) : undefined
     const newParent = this.nodes.get(parentId)
-    if (!newParent) return
+    if (!newParent || this.isDescendant(parentId, nodeId)) return
 
     // Remove from old parent
     if (oldParent) {
@@ -470,6 +493,7 @@ export class SceneGraph {
     }
 
     node.parentId = parentId
+    this.absPosCache.clear()
     idx = Math.min(idx, newParent.childIds.length)
     newParent.childIds.splice(idx, 0, nodeId)
 

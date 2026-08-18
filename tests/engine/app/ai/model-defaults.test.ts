@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'bun:test'
 
 import { defaultModelForMode, slotForMode } from '@/app/ai/acp/model-defaults'
-import { setAcpDefaultModel } from '@/app/ai/chat/storage'
+import { setACPDefaultModel } from '@/app/ai/chat/storage'
 
 describe('slotForMode', () => {
   test('maps plan-ish modes to plan', () => {
@@ -31,9 +31,9 @@ describe('defaultModelForMode', () => {
   ]
 
   test('resolves the configured model for the current mode slot', () => {
-    setAcpDefaultModel('opencode', 'plan', 'anthropic/claude-fable-5')
-    setAcpDefaultModel('opencode', 'build', 'ollama/minimax-m3')
-    setAcpDefaultModel('opencode', 'auto', 'anthropic/claude-opus-4-8')
+    setACPDefaultModel('opencode', 'plan', 'anthropic/claude-fable-5')
+    setACPDefaultModel('opencode', 'build', 'ollama/minimax-m3')
+    setACPDefaultModel('opencode', 'auto', 'anthropic/claude-opus-4-8')
 
     expect(defaultModelForMode('opencode', MODES, 'plan')).toBe('anthropic/claude-fable-5')
     expect(defaultModelForMode('opencode', MODES, 'build')).toBe('ollama/minimax-m3')
@@ -43,13 +43,13 @@ describe('defaultModelForMode', () => {
   })
 
   test('falls back to the build slot for unknown modes and returns empty when unset', () => {
-    setAcpDefaultModel('codex', 'build', 'gpt-5.2-codex')
+    setACPDefaultModel('codex', 'build', 'gpt-5.2-codex')
     expect(defaultModelForMode('codex', MODES, 'nonexistent-mode')).toBe('gpt-5.2-codex')
     expect(defaultModelForMode('claude-code', MODES, 'build')).toBe('')
   })
 
   test('defaults are stored per agent', () => {
-    setAcpDefaultModel('opencode', 'plan', 'ollama/minimax-m3')
+    setACPDefaultModel('opencode', 'plan', 'ollama/minimax-m3')
     expect(defaultModelForMode('gemini-cli', MODES, 'plan')).toBe('')
   })
 })

@@ -54,7 +54,11 @@ export type {
   UseFlatReorderDragOptions
 } from '#vue/shared/drag/useFlatReorderDrag'
 export { useInlineRename } from '#vue/editor/inline-rename/use'
-export { useToolbarState } from '#vue/primitives/Toolbar/useToolbarState'
+export {
+  getToolbarToolSelection,
+  isToolbarToolActive,
+  useToolbarState
+} from '#vue/primitives/Toolbar/useToolbarState'
 export { useNodeFontStatus } from '#vue/shared/font-status/use'
 export { usePropScrub } from '#vue/controls/prop-scrub/use'
 export { toolCursor } from '#vue/editor/tool-cursor'
@@ -78,6 +82,12 @@ export { useAppearance } from '#vue/controls/appearance/use'
 export { useMask } from '#vue/controls/mask/use'
 export { useTypography } from '#vue/controls/typography/use'
 export type { UseTypographyOptions } from '#vue/controls/typography/use'
+export { useDocumentWorkspace } from '#vue/document/workspace/use'
+export type {
+  DocumentWorkspaceItem,
+  DocumentWorkspaceSource,
+  UseDocumentWorkspaceOptions
+} from '#vue/document/workspace/use'
 export { useExport } from '#vue/document/export/use'
 export type { ExportFormatId, ExportSetting } from '#vue/document/export/use'
 export { useFillControls } from '#vue/controls/fill/use'
@@ -209,11 +219,13 @@ export {
   compatibleComponentPropertyDefinitions,
   instanceSwapOptions,
   mergedComponentPropertyValue,
-  useComponentProperties
+  useComponentProperties,
+  useVariantAuthoring
 } from '#vue/controls/component-props'
 export type {
   ComponentPropertyControl,
-  ComponentPropertyOption
+  ComponentPropertyOption,
+  VariantDefinitionControl
 } from '#vue/controls/component-props'
 export type { CornerGeometryKey, CornerRadiusKey } from '#vue/controls/appearance/types'
 export { PageListRoot } from '#vue/primitives/PageList'
@@ -242,6 +254,14 @@ export type {
   PropertyListRootSlotProps,
   PropertyListRootSlots
 } from '#vue/primitives/PropertyList'
+export { PropertyGridRoot } from '#vue/primitives/PropertyGrid'
+export type {
+  PropertyGridColumns,
+  PropertyGridDistribution,
+  PropertyGridRootProps,
+  PropertyGridRootSlots
+} from '#vue/primitives/PropertyGrid'
+
 export {
   PropertySectionRoot,
   PropertySectionHeader,
